@@ -1,12 +1,26 @@
 module.exports = {
   mainMenu() {
     return {
-      type: 'button',
+      type: 'list',
       body: { text: '¿Qué deseas hacer?' },
       action: {
-        buttons: [
-          { type: 'reply', reply: { id: 'ORDER', title: '🛒 Hacer pedido' } },
-          { type: 'reply', reply: { id: 'HUMAN', title: '👤 Hablar con una persona' } }
+        button: 'Seleccionar',
+        sections: [
+          {
+            title: 'Opciones',
+            rows: [
+              {
+                id: 'ORDER',
+                title: '🛒 Hacer pedido',
+                description: 'Ver productos disponibles'
+              },
+              {
+                id: 'HUMAN',
+                title: '👤 Hablar con una persona',
+                description: 'Atención personalizada'
+              }
+            ]
+          }
         ]
       }
     };
@@ -21,11 +35,11 @@ module.exports = {
         sections: [{
           title: 'Productos',
           rows: [
-            { id: 'PATITAS', title: '🐾 Patitas de pollo' },
-            { id: 'PULMON', title: '🫁 Pulmón de res' },
-            { id: 'OREJAS', title: '👂 Orejas de res' },
-            { id: 'TRAQUEAS', title: '🦴 Tráqueas de res' },
-            { id: 'BULLSTICK', title: '🥩 Bullstick' }
+            { id: 'PATITAS', title: '🐾 Patitas de pollo', description: 'Desde Q32.00' },
+            { id: 'PULMON', title: '🫁 Pulmón de res', description: 'Desde Q30.00' },
+            { id: 'OREJAS', title: '👂 Orejas de res', description: 'Desde Q30.00' },
+            { id: 'TRAQUEAS', title: '🦴 Tráqueas de res', description: 'Desde Q30.00' },
+            { id: 'BULLSTICK', title: '🥩 Bullstick', description: 'Desde Q30.00' }
           ]
         }]
       }
