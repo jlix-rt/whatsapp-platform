@@ -6,34 +6,10 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      # =========================
-      # BACKEND BUILD
-      # =========================
-      - name: Install & build backend
-        working-directory: apps/api
-        run: |
-          npm install
-          npm run build
-
-      # =========================
-      # FRONTEND BUILD (INBOX)
-      # =========================
-      - name: Install & build inbox
-        working-directory: apps/inbox
-        run: |
-          npm install
-          npm run build
-
-      # =========================
-      # DEPLOY TO VPS
-      # =========================
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -42,7 +18,7 @@ jobs:
           key: ${{ secrets.VPS_KEY }}
           request_pty: true
           timeout: 30s
-          command_timeout: 10m
+          command_timeout: 15m
           script: |
             set -e
 
@@ -55,28 +31,43 @@ jobs:
             echo "🔄 Actualizando código"
             git pull origin main
 
-            # =========================
-            # BACKEND DEPLOY
-            # =========================
+            ######################################
+            # BACKEND (WHATSAPP API)
+            ######################################
+            echo "🔧 Instalando dependencias backend"
+            cd apps/api
+            npm install
+
+            echo "🏗️ Compilando backend"
+            npm run build
+
             echo "📦 Publicando backend"
             sudo mkdir -p /var/www/apps/whatsapp-api
             sudo rm -rf /var/www/apps/whatsapp-api/*
-            sudo cp -R apps/api/dist/* /var/www/apps/whatsapp-api/
-            sudo cp apps/api/ecosystem.config.js /var/www/apps/whatsapp-api/
-            sudo chown -R deploy:deploy /var/www/apps/whatsapp-api
+            sudo cp -R dist/* /var/www/apps/whatsapp-api/
+            sudo cp ecosystem.config.js /var/www/apps/whatsapp-api/
+            sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /var/www/apps/whatsapp-api
 
             echo "🚀 Reiniciando backend"
             cd /var/www/apps/whatsapp-api
             pm2 restart whatsapp-api || pm2 start ecosystem.config.js
             pm2 save
 
-            # =========================
-            # FRONTEND DEPLOY
-            # =========================
-            echo "📦 Publicando Inbox"
+            ######################################
+            # FRONTEND (INBOX)
+            ######################################
+            echo "🎨 Instalando dependencias inbox"
+            cd ${{ secrets.VPS_PATH }}/apps/inbox
+            export NG_CLI_ANALYTICS=false
+            npm install
+
+            echo "🏗️ Compilando inbox"
+            npm run build
+
+            echo "📦 Publicando inbox"
             sudo mkdir -p /var/www/html/inbox
             sudo rm -rf /var/www/html/inbox/*
-            sudo cp -R apps/inbox/dist/* /var/www/html/inbox
+            sudo cp -R dist/* /var/www/html/inbox
             sudo chown -R www-data:www-data /var/www/html/inbox
 
             echo "✅ Despliegue completado"
