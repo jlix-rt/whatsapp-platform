@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface Conversation {
   id: number;
@@ -25,7 +26,7 @@ export interface Message {
   providedIn: 'root'
 })
 export class InboxService {
-  private apiUrl = 'http://localhost:3333';
+  private apiUrl = environment.apiUrl; // Remover /api para obtener la base URL
 
   constructor(private http: HttpClient) {}
 
