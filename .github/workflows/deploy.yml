@@ -10,15 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      # 🚀 Deploy a VPS
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -34,7 +25,7 @@ jobs:
             echo "📂 Entrando al repo"
             cd ${{ secrets.VPS_PATH }}
 
-            echo "🔄 Pull cambios"
+            echo "🔄 Actualizando código"
             git pull origin main
 
             echo "🔧 Backend (prod deps)"
@@ -43,8 +34,9 @@ jobs:
             pm2 restart whatsapp-api || pm2 start ecosystem.config.js
             pm2 save
 
-            echo "🎨 Build Inbox"
+            echo "🎨 Build Inbox (Angular, no interactivo)"
             cd ../inbox
+            export NG_CLI_ANALYTICS=false
             npm install
             npm run build
 
