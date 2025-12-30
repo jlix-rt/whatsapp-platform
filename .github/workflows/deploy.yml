@@ -1,4 +1,4 @@
-name: Deploy WhatsApp API
+name: Deploy WhatsApp Platform
 
 on:
   push:
@@ -18,9 +18,23 @@ jobs:
         with:
           node-version: 20
 
+      # 🔧 Instalar todo (incluye dev para build)
       - name: Install dependencies
         run: npm install
 
+      # 🔧 Build backend
+      - name: Build API
+        run: |
+          cd apps/api
+          npm run build
+
+      # 🎨 Build inbox
+      - name: Build Inbox
+        run: |
+          cd apps/inbox
+          npm run build
+
+      # 🚀 Deploy a VPS
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -29,27 +43,20 @@ jobs:
           key: ${{ secrets.VPS_KEY }}
           script: |
             set -e
-
             echo "📂 Entrando al repo"
             cd ${{ secrets.VPS_PATH }}
 
             git pull origin main
 
-            echo "🔧 Backend"
+            echo "🔧 Backend (solo prod deps)"
             cd apps/api
             npm install --omit=dev
-            npm run build
-
             pm2 restart whatsapp-api || pm2 start ecosystem.config.js
             pm2 save
 
-            echo "🎨 Inbox"
-            cd ../inbox
-            npm install
-            npm run build
-
-            echo "📦 Publicando inbox en Nginx"
+            echo "🎨 Publicando Inbox"
             sudo mkdir -p /var/www/html/inbox
             sudo rm -rf /var/www/html/inbox/*
             sudo cp -R dist/inbox/* /var/www/html/inbox
             sudo chown -R www-data:www-data /var/www/html/inbox
+            echo "✅ Despliegue completado"
