@@ -29,8 +29,27 @@ jobs:
           key: ${{ secrets.VPS_KEY }}
           script: |
             set -e
+
+            echo "📂 Entrando al repo"
             cd ${{ secrets.VPS_PATH }}
+
             git pull origin main
-            npm install --production
+
+            echo "🔧 Backend"
+            cd apps/api
+            npm install --omit=dev
+            npm run build
+
             pm2 restart whatsapp-api || pm2 start ecosystem.config.js
             pm2 save
+
+            echo "🎨 Inbox"
+            cd ../inbox
+            npm install
+            npm run build
+
+            echo "📦 Publicando inbox en Nginx"
+            sudo mkdir -p /var/www/html/inbox
+            sudo rm -rf /var/www/html/inbox/*
+            sudo cp -R dist/inbox/* /var/www/html/inbox
+            sudo chown -R www-data:www-data /var/www/html/inbox
