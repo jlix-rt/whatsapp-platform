@@ -25,9 +25,9 @@ jobs:
             APP_DIR=/var/www/whatsapp-platform
 
             echo "📂 Entrando al repo"
-            cd $APP_DIR
+            cd ${{ secrets.VPS_PATH }}
 
-            git config --global --add safe.directory $APP_DIR
+            git config --global --add safe.directory ${{ secrets.VPS_PATH }}
 
             echo "🔄 Actualizando código"
             git pull origin main
