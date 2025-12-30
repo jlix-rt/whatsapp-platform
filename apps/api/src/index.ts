@@ -9,24 +9,21 @@ import authRoutes from './routes/auth';
 import apiRoutes from './routes/api';
 import { initSchema } from './db/pool';
 import { tenantMiddleware, optionalTenantMiddleware } from './middleware/tenant.middleware';
+import { corsMiddleware } from './middleware/cors.middleware';
 
 // Variables de entorno ya cargadas en pool.ts
 
 const app = express();
 
-// Middleware de CORS para permitir solicitudes desde el frontend Angular
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:4200');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  // Manejar preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  
-  next();
-});
+// ============================================================================
+// MIDDLEWARE DE CORS DINÁMICO Y SEGURO
+// ============================================================================
+// Permite requests desde:
+// - *.inbox.tiendasgt.com (producción)
+// - *.tiendasgt.com (producción)
+// - http://localhost:4200 (desarrollo)
+// - Requests sin Origin (Twilio / server-to-server)
+app.use(corsMiddleware);
 
 // IMPORTANTE: Los middlewares de body parsing deben ir ANTES de las rutas
 // Twilio envía datos como application/x-www-form-urlencoded
@@ -60,7 +57,9 @@ app.use((req, res, next) => {
   if (req.path === '/health') {
     return next();
   }
+  
   // Todas las demás rutas requieren tenant
+  // El middleware usa x-forwarded-host (de nginx) o host como fallback
   return tenantMiddleware(req, res, next);
 });
 
