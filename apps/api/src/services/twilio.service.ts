@@ -39,6 +39,7 @@ function getTwilioClient(tenant?: Store): any {
   let authToken: string | undefined;
   let whatsappFrom: string | undefined;
 
+  console.log('tenant getTwilioClient', tenant);
   if (tenant) {
     // Usar credenciales del tenant si están disponibles
     accountSid = tenant.twilio_account_sid || undefined;
