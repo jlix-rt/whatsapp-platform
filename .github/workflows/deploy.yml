@@ -41,6 +41,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_KEY }}
+          request_pty: true   # 👈 ESTO ES LA CLAVE
           script: |
             set -e
             echo "📂 Entrando al repo"
