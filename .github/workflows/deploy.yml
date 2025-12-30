@@ -43,12 +43,34 @@ jobs:
 
             echo "📦 Publicando backend"
             sudo mkdir -p /var/www/apps/whatsapp-api
-            sudo rm -rf /var/www/apps/whatsapp-api/*
+            
+            # Preservar archivos importantes (.env) antes de limpiar
+            if [ -f /var/www/apps/whatsapp-api/.env ]; then
+              echo "💾 Preservando .env"
+              sudo cp /var/www/apps/whatsapp-api/.env /tmp/whatsapp-api-env-backup
+            fi
+            
+            # Limpiar directorio EXCEPTO .env y node_modules
+            # Usar find para excluir archivos específicos de forma segura
+            cd /var/www/apps/whatsapp-api
+            sudo find . -mindepth 1 -maxdepth 1 ! -name '.env' ! -name 'node_modules' -exec rm -rf {} + || true
+            
+            # Copiar archivos compilados
+            cd ${{ secrets.VPS_PATH }}/apps/api
             sudo cp -R dist/* /var/www/apps/whatsapp-api/
             sudo cp package.json /var/www/apps/whatsapp-api/
             sudo cp package-lock.json /var/www/apps/whatsapp-api/
             sudo cp ecosystem.config.js /var/www/apps/whatsapp-api/
-            sudo rm -rf node_modules
+            
+            # Restaurar .env si existía
+            if [ -f /tmp/whatsapp-api-env-backup ]; then
+              echo "✅ Restaurando .env"
+              sudo mv /tmp/whatsapp-api-env-backup /var/www/apps/whatsapp-api/.env
+              sudo chmod 600 /var/www/apps/whatsapp-api/.env
+            else
+              echo "⚠️  No se encontró .env para restaurar. Asegúrate de crear uno manualmente."
+            fi
+            
             sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /var/www/apps/whatsapp-api
 
             echo "🚀 Reiniciando backend"
