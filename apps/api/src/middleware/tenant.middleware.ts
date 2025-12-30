@@ -82,8 +82,12 @@ export const tenantMiddleware = async (
     }
 
     // ========================================================================
-    // PASO 4: Validar que el tenant existe en la base de datos
+    // PASO 4: Consultar tenant en base de datos (incluyendo credenciales de Twilio)
     // ========================================================================
+    // Esta consulta obtiene TODAS las credenciales de Twilio del tenant:
+    // - twilio_account_sid
+    // - twilio_auth_token
+    // - whatsapp_from
     const store = await getStoreBySlug(tenantId);
     
     if (!store) {
@@ -99,10 +103,33 @@ export const tenantMiddleware = async (
     }
 
     // ========================================================================
-    // PASO 5: Adjuntar el tenant al request
+    // PASO 5: Validar y loguear credenciales de Twilio obtenidas
     // ========================================================================
+    console.log(`✅ [TENANT] Tenant '${tenantId}' encontrado en BD:`, {
+      id: store.id,
+      name: store.name,
+      slug: store.slug,
+      hasTwilioAccountSid: !!store.twilio_account_sid,
+      hasTwilioAuthToken: !!store.twilio_auth_token,
+      hasWhatsappFrom: !!store.whatsapp_from,
+      environment: store.environment
+    });
+
+    // Advertencia si no tiene credenciales de Twilio configuradas
+    if (!store.twilio_account_sid || !store.twilio_auth_token) {
+      console.warn(`⚠️  [TENANT] Tenant '${tenantId}' no tiene credenciales de Twilio en BD. Se usarán variables de entorno como fallback.`);
+    }
+
+    // ========================================================================
+    // PASO 6: Adjuntar el tenant completo (con credenciales) al request
+    // ========================================================================
+    // req.tenant contiene:
+    // - id, slug, name
+    // - twilio_account_sid (desde BD)
+    // - twilio_auth_token (desde BD)
+    // - whatsapp_from (desde BD)
+    // - environment
     req.tenant = store;
-    
 
     next();
   } catch (error: any) {

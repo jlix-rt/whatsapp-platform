@@ -30,18 +30,47 @@ export interface Message {
 }
 
 /**
- * Obtener tienda por slug
+ * Obtener tienda por slug (incluyendo credenciales de Twilio)
  * 
- * MULTITENANT: Esta función se usa para validar que un tenant existe.
+ * MULTITENANT: Esta función se usa para validar que un tenant existe y obtener
+ * sus credenciales de Twilio desde la base de datos.
+ * 
  * El slug corresponde al tenant_id extraído del subdominio.
+ * 
+ * IMPORTANTE: Esta función consulta explícitamente las credenciales de Twilio:
+ * - twilio_account_sid
+ * - twilio_auth_token
+ * - whatsapp_from
+ * 
+ * Estas credenciales se obtienen directamente de la tabla 'stores' en la BD.
  */
 export const getStoreBySlug = async (slug: string): Promise<Store | null> => {
   const result = await pool.query(
-    `SELECT id, slug, name, twilio_account_sid, twilio_auth_token, whatsapp_from, environment 
-     FROM stores WHERE slug = $1`,
+    `SELECT 
+       id, 
+       slug, 
+       name, 
+       twilio_account_sid,    -- Credencial de Twilio desde BD
+       twilio_auth_token,     -- Credencial de Twilio desde BD
+       whatsapp_from,         -- Número de WhatsApp desde BD
+       environment 
+     FROM stores 
+     WHERE slug = $1`,
     [slug]
   );
-  return result.rows[0] || null;
+  
+  const store = result.rows[0] || null;
+  
+  // Log para debugging: confirmar que se obtuvieron las credenciales
+  if (store) {
+    console.log(`📊 [DB] Credenciales de Twilio obtenidas para tenant '${slug}':`, {
+      hasAccountSid: !!store.twilio_account_sid,
+      hasAuthToken: !!store.twilio_auth_token,
+      hasWhatsappFrom: !!store.whatsapp_from
+    });
+  }
+  
+  return store;
 };
 
 /**
