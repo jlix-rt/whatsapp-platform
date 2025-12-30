@@ -29,7 +29,12 @@ export interface Message {
   created_at: Date;
 }
 
-// Obtener tienda por slug
+/**
+ * Obtener tienda por slug
+ * 
+ * MULTITENANT: Esta función se usa para validar que un tenant existe.
+ * El slug corresponde al tenant_id extraído del subdominio.
+ */
 export const getStoreBySlug = async (slug: string): Promise<Store | null> => {
   const result = await pool.query(
     `SELECT id, slug, name, twilio_account_sid, twilio_auth_token, whatsapp_from, environment 
@@ -39,7 +44,11 @@ export const getStoreBySlug = async (slug: string): Promise<Store | null> => {
   return result.rows[0] || null;
 };
 
-// Obtener tienda por ID
+/**
+ * Obtener tienda por ID
+ * 
+ * MULTITENANT: Esta función se usa para obtener las credenciales del tenant.
+ */
 export const getStoreById = async (id: number): Promise<Store | null> => {
   const result = await pool.query(
     `SELECT id, slug, name, twilio_account_sid, twilio_auth_token, whatsapp_from, environment 
@@ -49,6 +58,12 @@ export const getStoreById = async (id: number): Promise<Store | null> => {
   return result.rows[0] || null;
 };
 
+/**
+ * Obtener o crear una conversación
+ * 
+ * MULTITENANT: Esta función filtra automáticamente por store_id (tenant_id).
+ * El store_id debe venir de req.tenant.id en los controladores.
+ */
 export const getOrCreateConversation = async (
   storeId: number,
   phoneNumber: string
@@ -64,6 +79,12 @@ export const getOrCreateConversation = async (
   return result.rows[0];
 };
 
+/**
+ * Obtener una conversación específica
+ * 
+ * MULTITENANT: Esta función filtra automáticamente por store_id (tenant_id).
+ * El store_id debe venir de req.tenant.id en los controladores.
+ */
 export const getConversation = async (
   storeId: number,
   phoneNumber: string
@@ -124,6 +145,13 @@ export const saveMessage = async (
   return result.rows[0];
 };
 
+/**
+ * Obtener todas las conversaciones de un tenant
+ * 
+ * MULTITENANT: Esta función filtra automáticamente por store_id (tenant_id).
+ * El store_id debe venir de req.tenant.id en los controladores.
+ * Solo retorna conversaciones del tenant especificado.
+ */
 export const getConversations = async (storeId: number): Promise<any[]> => {
   const result = await pool.query(
     `SELECT c.*, 
@@ -152,6 +180,13 @@ export const getConversations = async (storeId: number): Promise<any[]> => {
   return result.rows;
 };
 
+/**
+ * Obtener una conversación por ID
+ * 
+ * MULTITENANT: Esta función NO filtra por tenant.
+ * Los controladores DEBEN validar que conversation.store_id === req.tenant.id
+ * después de llamar a esta función para asegurar aislamiento de datos.
+ */
 export const getConversationById = async (conversationId: number): Promise<Conversation | null> => {
   const result = await pool.query(
     `SELECT * FROM conversations WHERE id = $1`,
@@ -160,6 +195,13 @@ export const getConversationById = async (conversationId: number): Promise<Conve
   return result.rows[0] || null;
 };
 
+/**
+ * Obtener mensajes de una conversación
+ * 
+ * MULTITENANT: Esta función NO valida el tenant directamente.
+ * Los controladores DEBEN validar primero que la conversación pertenece al tenant
+ * usando getConversationById y verificando conversation.store_id === req.tenant.id
+ */
 export const getMessages = async (conversationId: number): Promise<Message[]> => {
   const result = await pool.query(
     `SELECT * FROM messages

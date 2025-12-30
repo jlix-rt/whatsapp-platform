@@ -1,6 +1,12 @@
 import { sendText } from '../services/twilio.service';
-import { getConversation, getOrCreateConversation, saveMessage, updateConversationMode } from '../services/message.service';
+import { getConversation, getOrCreateConversation, saveMessage, updateConversationMode, getStoreById } from '../services/message.service';
+import { Store } from '../services/message.service';
 
+/**
+ * Flow de manejo de mensajes para Crunchy Paws
+ * 
+ * MULTITENANT: Recibe storeId y obtiene el tenant completo para usar sus credenciales
+ */
 export const handleMessage = async (req: any, res: any, storeId: number) => {
   // Validar que req.body existe
   if (!req.body) {
@@ -26,6 +32,13 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
   // Guardar mensaje entrante
   await saveMessage(conversation.id, 'inbound', body, req.body.MessageSid);
 
+  // Obtener el tenant completo para usar sus credenciales de Twilio
+  const tenant = await getStoreById(storeId);
+  if (!tenant) {
+    console.error(`❌ Error: Store con ID ${storeId} no encontrado`);
+    return res.status(500).json({ error: 'Error interno: tenant no encontrado' });
+  }
+
   // Si la conversación está en modo HUMAN, solo guardar y no responder
   if (conversation.mode === 'HUMAN') {
     console.log(`📝 Mensaje guardado (modo HUMAN) - Conversación ${conversation.id}`);
@@ -38,7 +51,7 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     if (body === '2') {
       await updateConversationMode(conversation.id, 'HUMAN');
       const responseMessage = 'Alguien se comunicará contigo en breve';
-      const sent = await sendText(from, responseMessage);
+      const sent = await sendText(from, responseMessage, tenant);
       await saveMessage(conversation.id, 'outbound', responseMessage);
       console.log(`🤖 Conversación ${conversation.id} cambiada a modo HUMAN${sent ? '' : ' (simulado)'}`);
       return res.status(200).end();
@@ -46,7 +59,7 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
 
     // Responder con el menú automático
     const menuMessage = '¿Qué deseas hacer?\n1. Hacer pedido\n2. Hablar con una persona';
-    const sent = await sendText(from, menuMessage);
+    const sent = await sendText(from, menuMessage, tenant);
     await saveMessage(conversation.id, 'outbound', menuMessage);
     console.log(`🤖 Respuesta automática enviada - Conversación ${conversation.id}${sent ? '' : ' (simulado)'}`);
     return res.status(200).end();

@@ -1,18 +1,13 @@
 module.exports = {
   apps: [
     {
-      name: "whatsapp-crunchypaws",
+      name: "whatsapp-inbox",
       script: "dist/index.js",
-      env: {
-        NODE_ENV: "production"
-      }
-    },
-    {
-      name: "whatsapp-dkape",
-      script: "dist/index.js",
-      env: {
-        NODE_ENV: "sandbox"
-      }
+      env_file: ".env",
+      instances: 1,
+      exec_mode: "fork",
+      autorestart: true,
+      max_memory_restart: "300M"
     }
   ]
-}
+};

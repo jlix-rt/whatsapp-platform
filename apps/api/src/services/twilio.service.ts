@@ -1,54 +1,130 @@
 import twilio from 'twilio';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
+import { Store } from './message.service';
 
-// Cargar variables de entorno si no están cargadas
-if (!process.env.TWILIO_ACCOUNT_SID) {
-  dotenv.config({ path: path.join(__dirname, '../../.env') });
-}
+/**
+ * Servicio de Twilio multitenant
+ * 
+ * Cada tenant puede tener sus propias credenciales de Twilio almacenadas en la base de datos.
+ * Las credenciales se obtienen del objeto Store pasado como parámetro.
+ * 
+ * Prioridad de configuración:
+ * 1. Credenciales del tenant en la base de datos (tabla stores)
+ *    - twilio_account_sid
+ *    - twilio_auth_token
+ *    - whatsapp_from (número de WhatsApp específico del tenant)
+ * 2. Variables de entorno globales (.env) como fallback
+ *    - TWILIO_ACCOUNT_SID
+ *    - TWILIO_AUTH_TOKEN
+ *    - WHATSAPP_FROM
+ * 
+ * Casos de uso:
+ * - Producción: Cada tenant tiene sus propias credenciales en la BD
+ *   Ejemplo: crunchypaws usa número de producción, dkape usa número de sandbox
+ * - Desarrollo: Usar variables de entorno compartidas
+ * 
+ * IMPORTANTE: El campo 'whatsapp_from' en la tabla stores permite que cada tenant
+ * use un número diferente (producción vs sandbox).
+ */
 
 const isProduction = process.env.NODE_ENV === 'production';
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
 
-let client: any = null;
+/**
+ * Obtiene o crea un cliente de Twilio para un tenant específico
+ * 
+ * MULTITENANT: Cada tenant puede tener sus propias credenciales
+ */
+function getTwilioClient(tenant?: Store): any {
+  // Si no hay tenant, usar credenciales globales (fallback)
+  let accountSid: string | undefined;
+  let authToken: string | undefined;
+  let whatsappFrom: string | undefined;
 
-// Solo inicializar cliente de Twilio en producción
-if (isProduction) {
-  if (!accountSid || !authToken) {
-    console.error('❌ Error: TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN deben estar configurados en .env para producción');
-    throw new Error('Credenciales de Twilio no configuradas');
+  if (tenant) {
+    // Usar credenciales del tenant si están disponibles
+    accountSid = tenant.twilio_account_sid || undefined;
+    authToken = tenant.twilio_auth_token || undefined;
+    whatsappFrom = tenant.whatsapp_from || undefined;
   }
+
+  // Fallback a variables de entorno si el tenant no tiene credenciales
+  if (!accountSid) {
+    accountSid = process.env.TWILIO_ACCOUNT_SID;
+  }
+  if (!authToken) {
+    authToken = process.env.TWILIO_AUTH_TOKEN;
+  }
+  if (!whatsappFrom) {
+    whatsappFrom = process.env.WHATSAPP_FROM;
+  }
+
+  // En desarrollo, simular sin cliente real
+  if (!isProduction) {
+    return null; // Retornar null indica modo simulación
+  }
+
+  // En producción, validar credenciales
+  if (!accountSid || !authToken) {
+    const tenantInfo = tenant ? ` (tenant: ${tenant.slug})` : '';
+    console.error(`❌ Error: Credenciales de Twilio no configuradas${tenantInfo}`);
+    throw new Error(`Credenciales de Twilio no configuradas${tenantInfo}`);
+  }
+
   try {
-    client = twilio(accountSid, authToken);
-    console.log('✅ Twilio inicializado para producción');
+    return twilio(accountSid, authToken);
   } catch (error) {
-    console.error('❌ Error inicializando Twilio:', error);
+    console.error('❌ Error inicializando cliente de Twilio:', error);
     throw error;
   }
-} else {
-  console.log('🔧 Modo desarrollo: Twilio deshabilitado, mensajes se simularán');
 }
 
-export const sendInteractive = async (to: string, interactive: any): Promise<boolean> => {
+/**
+ * Envía un mensaje interactivo de WhatsApp
+ * 
+ * MULTITENANT: Usa las credenciales del tenant para enviar el mensaje
+ * 
+ * @param to Número de teléfono destino
+ * @param interactive Objeto interactivo de Twilio
+ * @param tenant Tenant (Store) con las credenciales de Twilio
+ */
+export const sendInteractive = async (
+  to: string, 
+  interactive: any, 
+  tenant?: Store
+): Promise<boolean> => {
   const bodyText = interactive.body?.text || 'Selecciona una opción';
 
+  // Obtener cliente de Twilio para el tenant
+  const client = getTwilioClient(tenant);
+
   // En desarrollo: solo loguear, NO enviar a Twilio
-  if (!isProduction) {
+  if (!client) {
     console.log('[MOCK SEND]', bodyText);
     console.log('   To:', to);
     console.log('   Type: Interactive');
+    if (tenant) {
+      console.log(`   Tenant: ${tenant.slug}`);
+    }
     return false; // Indica que fue simulado
   }
 
-  // En producción: enviar mensaje real
-  if (!client) {
-    throw new Error('Cliente de Twilio no inicializado');
+  // Obtener número de WhatsApp del tenant o usar variable de entorno como fallback
+  // Prioridad: 1) tenant.whatsapp_from (configurado en BD), 2) process.env.WHATSAPP_FROM
+  const whatsappFrom = tenant?.whatsapp_from || process.env.WHATSAPP_FROM;
+  
+  if (!whatsappFrom) {
+    const tenantInfo = tenant ? ` para el tenant '${tenant.slug}'` : '';
+    throw new Error(`Número de WhatsApp no configurado${tenantInfo}. Configure whatsapp_from en la tabla stores o WHATSAPP_FROM en .env`);
+  }
+
+  // Log para debugging: mostrar qué número se está usando y de dónde viene
+  if (tenant) {
+    const source = tenant.whatsapp_from ? 'base de datos (tenant)' : 'variables de entorno (.env)';
+    console.log(`📱 Enviando mensaje interactivo desde: ${whatsappFrom} (fuente: ${source}, tenant: ${tenant.slug})`);
   }
 
   try {
     await client.messages.create({
-      from: process.env.WHATSAPP_FROM,
+      from: whatsappFrom,
       to,
       body: bodyText,
       interactive
@@ -60,22 +136,51 @@ export const sendInteractive = async (to: string, interactive: any): Promise<boo
   }
 };
 
-export const sendText = async (to: string, text: string): Promise<boolean> => {
+/**
+ * Envía un mensaje de texto de WhatsApp
+ * 
+ * MULTITENANT: Usa las credenciales del tenant para enviar el mensaje
+ * 
+ * @param to Número de teléfono destino
+ * @param text Texto del mensaje
+ * @param tenant Tenant (Store) con las credenciales de Twilio
+ */
+export const sendText = async (
+  to: string, 
+  text: string, 
+  tenant?: Store
+): Promise<boolean> => {
+  // Obtener cliente de Twilio para el tenant
+  const client = getTwilioClient(tenant);
+
   // En desarrollo: solo loguear, NO enviar a Twilio
-  if (!isProduction) {
+  if (!client) {
     console.log('[MOCK SEND]', text);
     console.log('   To:', to);
+    if (tenant) {
+      console.log(`   Tenant: ${tenant.slug}`);
+    }
     return false; // Indica que fue simulado
   }
 
-  // En producción: enviar mensaje real
-  if (!client) {
-    throw new Error('Cliente de Twilio no inicializado');
+  // Obtener número de WhatsApp del tenant o usar variable de entorno como fallback
+  // Prioridad: 1) tenant.whatsapp_from (configurado en BD), 2) process.env.WHATSAPP_FROM
+  const whatsappFrom = tenant?.whatsapp_from || process.env.WHATSAPP_FROM;
+  
+  if (!whatsappFrom) {
+    const tenantInfo = tenant ? ` para el tenant '${tenant.slug}'` : '';
+    throw new Error(`Número de WhatsApp no configurado${tenantInfo}. Configure whatsapp_from en la tabla stores o WHATSAPP_FROM en .env`);
+  }
+
+  // Log para debugging: mostrar qué número se está usando y de dónde viene
+  if (tenant) {
+    const source = tenant.whatsapp_from ? 'base de datos (tenant)' : 'variables de entorno (.env)';
+    console.log(`📱 Enviando mensaje desde: ${whatsappFrom} (fuente: ${source}, tenant: ${tenant.slug})`);
   }
 
   try {
     await client.messages.create({
-      from: process.env.WHATSAPP_FROM,
+      from: whatsappFrom,
       to,
       body: text
     });

@@ -1,15 +1,30 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
+// Importar tipos extendidos de Express
+import '../types/express';
 import { handleMessage as handleCrunchypaws } from '../flows/crunchypaws.flow';
 import { handleMessage as handleDkape } from '../flows/dkape.flow';
-import { getStoreBySlug } from '../services/message.service';
 
 const router = Router();
 
-router.post('/whatsapp', async (req, res) => {
-  const storeSlug = process.env.STORE_ID || 'crunchypaws';
+/**
+ * POST /webhook/whatsapp
+ * 
+ * Endpoint para recibir webhooks de WhatsApp Business API (Twilio)
+ * 
+ * MULTITENANT: El tenant se identifica automáticamente desde el subdominio
+ * mediante el middleware tenant.middleware.ts y está disponible como req.tenant
+ */
+router.post('/whatsapp', async (req: Request, res: Response) => {
+  // Validar que el tenant fue identificado por el middleware
+  if (!req.tenant) {
+    return res.status(400).json({ error: 'Tenant no identificado' });
+  }
+
+  const tenant = req.tenant;
   
   // Debug: ver qué está llegando
   console.log('📥 Webhook recibido:', {
+    tenant: tenant.slug,
     contentType: req.headers['content-type'],
     body: req.body,
     bodyType: typeof req.body,
@@ -17,20 +32,15 @@ router.post('/whatsapp', async (req, res) => {
   });
   
   try {
-    // Buscar la tienda por slug
-    const store = await getStoreBySlug(storeSlug);
-    if (!store) {
-      return res.status(400).json({ error: `Tienda con slug '${storeSlug}' no encontrada` });
-    }
-
-    // Determinar qué flow usar basado en el slug
-    if (storeSlug === 'crunchypaws') {
-      await handleCrunchypaws(req, res, store.id);
-    } else if (storeSlug === 'dkape') {
-      await handleDkape(req, res, store.id);
+    // Determinar qué flow usar basado en el slug del tenant
+    if (tenant.slug === 'crunchypaws') {
+      await handleCrunchypaws(req, res, tenant.id);
+    } else if (tenant.slug === 'dkape') {
+      await handleDkape(req, res, tenant.id);
     } else {
-      // Flow genérico para otras tiendas
-      await handleCrunchypaws(req, res, store.id);
+      // Flow genérico para otras tiendas (usar crunchypaws como default)
+      console.log(`📋 Usando flow genérico para tenant: ${tenant.slug}`);
+      await handleCrunchypaws(req, res, tenant.id);
     }
   } catch (error) {
     console.error('Error en webhook:', error);

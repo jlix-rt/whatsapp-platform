@@ -1,12 +1,21 @@
-import { Router } from 'express';
-import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, getStoreBySlug, updateConversationMode } from '../services/message.service';
+import { Router, Request, Response } from 'express';
+// Importar tipos extendidos de Express
+import '../types/express';
+import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, updateConversationMode } from '../services/message.service';
 import { sendText } from '../services/twilio.service';
 import { pool } from '../db/pool';
 
 const router = Router();
 
-// GET /api/stores - Lista de tiendas desde la base de datos
-router.get('/stores', async (req, res) => {
+/**
+ * GET /api/stores
+ * 
+ * Lista todas las tiendas desde la base de datos
+ * 
+ * MULTITENANT: Este endpoint puede ser útil para administración,
+ * pero en producción debería estar protegido o removido
+ */
+router.get('/stores', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `SELECT slug as id, name, twilio_account_sid, twilio_auth_token, whatsapp_from, environment 
@@ -19,23 +28,23 @@ router.get('/stores', async (req, res) => {
   }
 });
 
-// GET /api/conversations - Lista de conversaciones por tienda
-router.get('/conversations', async (req, res) => {
+/**
+ * GET /api/conversations
+ * 
+ * Lista las conversaciones del tenant actual
+ * 
+ * MULTITENANT: Usa req.tenant.id para filtrar conversaciones automáticamente
+ * Ya no requiere storeId como query parameter
+ */
+router.get('/conversations', async (req: Request, res: Response) => {
   try {
-    const storeSlug = req.query.storeId as string;
-    
-    if (!storeSlug) {
-      return res.status(400).json({ error: 'storeId es requerido' });
+    // Validar que el tenant fue identificado por el middleware
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
     }
 
-    // Buscar la tienda por slug para obtener su ID numérico
-    const store = await getStoreBySlug(storeSlug);
-    if (!store) {
-      return res.status(404).json({ error: `Tienda con slug '${storeSlug}' no encontrada` });
-    }
-
-    // Usar el ID numérico para filtrar conversaciones
-    const conversations = await getConversations(store.id);
+    // Usar el ID del tenant actual para filtrar conversaciones
+    const conversations = await getConversations(req.tenant.id);
     res.json(conversations);
   } catch (error) {
     console.error('Error obteniendo conversaciones:', error);
@@ -43,19 +52,35 @@ router.get('/conversations', async (req, res) => {
   }
 });
 
-// GET /api/conversations/:conversationId/messages - Mensajes de una conversación
-router.get('/conversations/:conversationId/messages', async (req, res) => {
+/**
+ * GET /api/conversations/:conversationId/messages
+ * 
+ * Obtiene los mensajes de una conversación específica
+ * 
+ * MULTITENANT: Valida que la conversación pertenece al tenant actual
+ */
+router.get('/conversations/:conversationId/messages', async (req: Request, res: Response) => {
   try {
+    // Validar que el tenant fue identificado por el middleware
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
     const conversationId = parseInt(req.params.conversationId);
     
     if (isNaN(conversationId)) {
       return res.status(400).json({ error: 'conversationId inválido' });
     }
 
-    // Verificar que la conversación existe
+    // Verificar que la conversación existe y pertenece al tenant actual
     const conversation = await getConversationById(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    // Validar que la conversación pertenece al tenant actual
+    if (conversation.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
     }
 
     const messages = await getMessages(conversationId);
@@ -66,9 +91,21 @@ router.get('/conversations/:conversationId/messages', async (req, res) => {
   }
 });
 
-// POST /api/conversations/:conversationId/reply - Responder a una conversación
-router.post('/conversations/:conversationId/reply', async (req, res) => {
+/**
+ * POST /api/conversations/:conversationId/reply
+ * 
+ * Responde a una conversación específica
+ * 
+ * MULTITENANT: Valida que la conversación pertenece al tenant actual
+ * y usa las credenciales del tenant para enviar el mensaje
+ */
+router.post('/conversations/:conversationId/reply', async (req: Request, res: Response) => {
   try {
+    // Validar que el tenant fue identificado por el middleware
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
     const conversationId = parseInt(req.params.conversationId);
     const { text } = req.body;
 
@@ -80,10 +117,15 @@ router.post('/conversations/:conversationId/reply', async (req, res) => {
       return res.status(400).json({ error: 'text es requerido y debe ser una cadena no vacía' });
     }
 
-    // Verificar que la conversación existe
+    // Verificar que la conversación existe y pertenece al tenant actual
     const conversation = await getConversationById(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    // Validar que la conversación pertenece al tenant actual
+    if (conversation.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
     }
 
     // Asegurar que conversationId sea un número válido
@@ -98,8 +140,8 @@ router.post('/conversations/:conversationId/reply', async (req, res) => {
     const updatedConversation = await updateConversationMode(numericId, 'HUMAN');
     console.log(`✅ Conversación ${numericId} cambiada a modo HUMAN (modo anterior: ${conversation.mode}, modo nuevo: ${updatedConversation.mode})`);
 
-    // Enviar mensaje usando el servicio (mock en desarrollo)
-    await sendText(conversation.phone_number, text.trim());
+    // Enviar mensaje usando las credenciales del tenant
+    await sendText(conversation.phone_number, text.trim(), req.tenant);
 
     // Guardar mensaje como outbound
     const message = await saveMessage(conversationId, 'outbound', text.trim());
@@ -123,19 +165,35 @@ router.post('/conversations/:conversationId/reply', async (req, res) => {
   }
 });
 
-// POST /api/conversations/:conversationId/reset-bot - Resetear conversación a modo BOT
-router.post('/conversations/:conversationId/reset-bot', async (req, res) => {
+/**
+ * POST /api/conversations/:conversationId/reset-bot
+ * 
+ * Resetea una conversación a modo BOT
+ * 
+ * MULTITENANT: Valida que la conversación pertenece al tenant actual
+ */
+router.post('/conversations/:conversationId/reset-bot', async (req: Request, res: Response) => {
   try {
+    // Validar que el tenant fue identificado por el middleware
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
     const conversationId = parseInt(req.params.conversationId);
 
     if (isNaN(conversationId)) {
       return res.status(400).json({ error: 'conversationId inválido' });
     }
 
-    // Verificar que la conversación existe
+    // Verificar que la conversación existe y pertenece al tenant actual
     const conversation = await getConversationById(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    // Validar que la conversación pertenece al tenant actual
+    if (conversation.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
     }
 
     // Cambiar conversación a modo BOT

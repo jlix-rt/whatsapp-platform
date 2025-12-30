@@ -1,11 +1,14 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import express from 'express';
+// Importar tipos de Express extendidos (debe estar antes de otros imports)
+import './types/express';
 import webhookRoutes from './routes/webhook';
 import inboxRoutes from './routes/inbox';
 import authRoutes from './routes/auth';
 import apiRoutes from './routes/api';
 import { initSchema } from './db/pool';
+import { tenantMiddleware, optionalTenantMiddleware } from './middleware/tenant.middleware';
 
 // Variables de entorno ya cargadas en pool.ts
 
@@ -46,12 +49,28 @@ app.use((req, res, next) => {
   next();
 });
 
+// ============================================================================
+// MIDDLEWARE MULTITENANT
+// ============================================================================
+// Aplicar middleware de tenant a todas las rutas EXCEPTO health check
+// El middleware extrae el tenant_id del subdominio y valida que existe
+// El tenant se adjunta al request como req.tenant para uso en controladores
+app.use((req, res, next) => {
+  // Health check no requiere tenant
+  if (req.path === '/health') {
+    return next();
+  }
+  // Todas las demás rutas requieren tenant
+  return tenantMiddleware(req, res, next);
+});
+
 // Rutas
 app.use('/webhook', webhookRoutes);
 app.use('/inbox', inboxRoutes);
 app.use('/auth', authRoutes);
 app.use('/api', apiRoutes);
 
+// Health check sin tenant (para monitoreo)
 app.get('/health', (_, res) => res.send('OK'));
 
 const PORT = process.env.PORT || 3333;
@@ -59,9 +78,9 @@ const PORT = process.env.PORT || 3333;
 // Inicializar esquema y luego iniciar servidor
 initSchema().then(() => {
   app.listen(PORT, () => {
-    console.log(`WhatsApp API corriendo en puerto ${PORT}`);
-    const storeSlug = process.env.STORE_ID || 'crunchypaws';
-    console.log(`Store Slug: ${storeSlug}`);
+    console.log(`🚀 WhatsApp API corriendo en puerto ${PORT}`);
+    console.log(`🏪 Modo multitenant: Identificación por subdominio`);
+    console.log(`   Ejemplo: crunchypaws.inbox.tiendasgt.com → tenant_id = "crunchypaws"`);
   });
 }).catch((error) => {
   console.error('Error inicializando aplicación:', error);
