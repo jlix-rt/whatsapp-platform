@@ -2,11 +2,9 @@ import { Pool } from 'pg';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 
-// Cargar variables de entorno PRIMERO antes de cualquier otra cosa
-// Desde src/db/pool.ts necesitamos subir dos niveles para llegar a apps/api/.env
-const envPath = path.join(__dirname, '../../.env');
-dotenv.config({ path: envPath });
-console.log('📁 Cargando .env desde:', envPath);
+
+dotenv.config();
+console.log('📁 Cargando .env');
 
 // Construir configuración de base de datos
 const dbConfig: any = {
