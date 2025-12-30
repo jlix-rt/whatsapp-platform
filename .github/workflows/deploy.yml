@@ -61,7 +61,8 @@ jobs:
             sudo cp package.json /var/www/apps/whatsapp-api/
             sudo cp package-lock.json /var/www/apps/whatsapp-api/
             sudo cp ecosystem.config.js /var/www/apps/whatsapp-api/
-            
+            sudo cp src/db/*.sql /var/www/apps/whatsapp-api/db/
+
             # Restaurar .env si existía
             if [ -f /tmp/whatsapp-api-env-backup ]; then
               echo "✅ Restaurando .env"
