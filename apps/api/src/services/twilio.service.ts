@@ -58,16 +58,34 @@ function getTwilioClient(tenant?: Store): any {
     whatsappFrom = process.env.WHATSAPP_FROM;
   }
 
-  // En desarrollo, simular sin cliente real
-  if (!isProduction) {
-    return null; // Retornar null indica modo simulación
-  }
-
-  // En producción, validar credenciales
+  // Validar que tenemos credenciales antes de continuar
   if (!accountSid || !authToken) {
     const tenantInfo = tenant ? ` (tenant: ${tenant.slug})` : '';
     console.error(`❌ Error: Credenciales de Twilio no configuradas${tenantInfo}`);
+    
+    // En desarrollo sin credenciales, retornar null para modo MOCK
+    if (!isProduction) {
+      console.warn(`⚠️  Modo desarrollo sin credenciales: usando MOCK`);
+      return null;
+    }
+    
+    // En producción sin credenciales, lanzar error
     throw new Error(`Credenciales de Twilio no configuradas${tenantInfo}`);
+  }
+
+  // Si tenemos credenciales válidas, crear cliente incluso en desarrollo
+  // Esto permite probar con credenciales reales en desarrollo si es necesario
+  // Para forzar MOCK en desarrollo, usar: ENABLE_TWILIO_MOCK=true
+  const forceMock = process.env.ENABLE_TWILIO_MOCK === 'true';
+  if (forceMock) {
+    console.log('🔧 Modo MOCK forzado por ENABLE_TWILIO_MOCK=true');
+    return null;
+  }
+
+  // Si estamos en desarrollo pero tenemos credenciales, preguntar si queremos enviar realmente
+  if (!isProduction) {
+    console.log(`🔧 Modo desarrollo con credenciales válidas. Enviando mensajes reales a Twilio.`);
+    console.log(`   Para usar MOCK en desarrollo, configura ENABLE_TWILIO_MOCK=true en .env`);
   }
 
   try {
