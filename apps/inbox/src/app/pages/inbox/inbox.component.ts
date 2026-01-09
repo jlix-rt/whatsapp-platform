@@ -131,6 +131,11 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     }
   }
 
+  deselectConversation() {
+    this.selectedConversation = null;
+    this.messages = [];
+  }
+
   ngAfterViewChecked() {
     if (this.shouldScrollToBottom) {
       this.scrollToBottom();

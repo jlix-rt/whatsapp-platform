@@ -3,7 +3,8 @@
 .store-selector label{font-weight:500}
 .store-selector select{padding:.5rem;border:1px solid #ddd;border-radius:4px;font-size:1rem}
 .inbox-layout{flex:1;display:flex;overflow:hidden}
-.conversations-panel{width:350px;background-color:white;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;overflow:hidden}
+.conversations-panel{width:350px;background-color:white;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;overflow:hidden;transition:transform .3s ease-in-out}
+.messages-panel{flex:1;display:flex;flex-direction:column;background-color:#f5f5f5;overflow:hidden;min-height:0;padding:1rem}
 .conversations-header{padding:1rem;border-bottom:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center}
 .conversations-header h2{margin:0;font-size:1.25rem;font-weight:500}
 .refresh-indicator{display:flex;align-items:center;justify-content:center;width:24px;height:24px}
@@ -31,6 +32,8 @@
 .no-selection p{color:#999;font-size:1.1rem}
 .messages-container{flex:1;display:flex;flex-direction:column;background-color:white;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.1);overflow:hidden;min-height:0;height:100%}
 .messages-header{padding:1rem;border-bottom:1px solid #e0e0e0;background-color:#fafafa;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.back-button{display:none;background:none;border:none;font-size:1.5rem;color:#333;cursor:pointer;padding:.5rem;margin-right:.5rem;transition:color .2s}
+.back-button:hover{color:#25D366}
 .conversation-info{display:flex;flex-direction:column;gap:.5rem;flex:1}
 .conversation-info h3{margin:0;font-size:1.1rem;color:#333}
 .conversation-actions{display:flex;gap:.5rem;align-items:center}
@@ -76,3 +79,4 @@
 .zoom-level{color:white;font-size:.875rem;min-width:50px;text-align:center;font-weight:500}
 .image-modal-image-container{max-width:90vw;max-height:90vh;overflow:auto;display:flex;align-items:center;justify-content:center;background-color:rgba(0,0,0,.3);border-radius:8px;padding:20px}
 .image-modal-image{max-width:100%;max-height:100%;object-fit:contain;transition:transform .2s;transform-origin:center center}
+@media(max-width:768px){.inbox-layout{position:relative}.conversations-panel{position:absolute;top:0;left:0;width:100%;height:100%;z-index:100;transform:translateX(0);transition:transform .3s ease-in-out}.conversations-panel.hidden{transform:translateX(-100%)}.messages-panel{padding:.5rem;width:100%}.messages-panel.full-width{width:100%;padding:0;position:absolute;top:0;left:0;height:100%;z-index:101}.back-button{display:block}.conversation-actions{flex-wrap:wrap}.reset-bot-button,.delete-button{font-size:.75rem;padding:.375rem .75rem}.messages-container{border-radius:0;box-shadow:none;height:100%;display:flex;flex-direction:column}.messages-header{padding:.75rem}.conversation-info h3{font-size:1rem}.message{max-width:85%}.message-input-container{padding:.75rem}.message-form{gap:.375rem}.message-input{padding:.5rem;font-size:.9rem}.send-button{padding:.5rem 1rem;font-size:.875rem}.no-selection{display:none}}

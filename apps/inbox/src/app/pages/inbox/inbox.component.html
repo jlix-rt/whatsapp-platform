@@ -9,7 +9,7 @@
 
   <div class="inbox-layout">
     <!-- Columna izquierda: Lista de conversaciones -->
-    <div class="conversations-panel">
+    <div class="conversations-panel" [class.hidden]="selectedConversation">
       <div class="conversations-header">
         <h2>Conversaciones</h2>
         <div *ngIf="refreshing" class="refresh-indicator" title="Actualizando...">
@@ -47,7 +47,7 @@
     </div>
 
     <!-- Columna derecha: Mensajes -->
-    <div class="messages-panel">
+    <div class="messages-panel" [class.full-width]="selectedConversation">
       <div *ngIf="!selectedConversation" class="no-selection">
         <p>Selecciona una conversación para ver los mensajes</p>
       </div>
@@ -55,6 +55,9 @@
       <div *ngIf="selectedConversation" class="messages-container">
         <!-- Header de la conversación -->
         <div class="messages-header">
+          <button class="back-button" (click)="deselectConversation()" title="Volver a conversaciones">
+            ←
+          </button>
           <div class="conversation-info">
             <h3>{{ selectedConversation.phone_number }}</h3>
             <span class="conversation-status">
