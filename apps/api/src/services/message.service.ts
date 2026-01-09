@@ -250,6 +250,17 @@ export const getMessages = async (conversationId: number): Promise<Message[]> =>
   return result.rows;
 };
 
+/**
+ * Obtener un mensaje por ID
+ */
+export const getMessageById = async (messageId: number): Promise<Message | null> => {
+  const result = await pool.query(
+    `SELECT * FROM messages WHERE id = $1`,
+    [messageId]
+  );
+  return result.rows[0] || null;
+};
+
 export const markConversationAsHandled = async (conversationId: number): Promise<Conversation> => {
   const result = await pool.query(
     `UPDATE conversations

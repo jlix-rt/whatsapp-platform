@@ -93,7 +93,7 @@
           >
             <!-- Imagen -->
             <div *ngIf="message.media_url && message.media_type?.startsWith('image/')" class="message-media">
-              <img [src]="message.media_url" [alt]="message.body || 'Imagen'" class="message-image" />
+              <img [src]="getMediaUrl(message)" [alt]="message.body || 'Imagen'" class="message-image" (error)="handleImageError($event)" />
             </div>
             
             <!-- Ubicación -->

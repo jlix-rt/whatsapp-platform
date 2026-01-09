@@ -1,9 +1,12 @@
 import { Router, Request, Response } from 'express';
 // Importar tipos extendidos de Express
 import '../types/express';
-import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, updateConversationMode, deleteConversation } from '../services/message.service';
+import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, updateConversationMode, deleteConversation, getMessageById } from '../services/message.service';
+import { getStoreById } from '../services/message.service';
 import { sendText } from '../services/twilio.service';
 import { pool } from '../db/pool';
+import https from 'https';
+import http from 'http';
 
 const router = Router();
 
@@ -282,6 +285,96 @@ router.delete('/conversations/:conversationId', async (req: Request, res: Respon
       return res.status(400).json({ error: error.message });
     }
     res.status(500).json({ error: 'Error al eliminar conversación' });
+  }
+});
+
+/**
+ * GET /api/messages/:messageId/media
+ * 
+ * Proxy para servir imágenes de Twilio con autenticación
+ * 
+ * MULTITENANT: Valida que el mensaje pertenece al tenant actual
+ */
+router.get('/messages/:messageId/media', async (req: Request, res: Response) => {
+  try {
+    // Validar que el tenant fue identificado por el middleware
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const messageId = parseInt(req.params.messageId);
+
+    if (isNaN(messageId)) {
+      return res.status(400).json({ error: 'messageId inválido' });
+    }
+
+    // Obtener el mensaje
+    const message = await getMessageById(messageId);
+    if (!message) {
+      return res.status(404).json({ error: 'Mensaje no encontrado' });
+    }
+
+    // Validar que el mensaje tiene media_url
+    if (!message.media_url) {
+      return res.status(400).json({ error: 'El mensaje no tiene media' });
+    }
+
+    // Obtener la conversación para validar el tenant
+    const conversation = await getConversationById(message.conversation_id);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    // Validar que la conversación pertenece al tenant actual
+    if (conversation.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a este mensaje' });
+    }
+
+    // Obtener las credenciales de Twilio del tenant
+    const tenant = await getStoreById(req.tenant.id);
+    if (!tenant || !tenant.twilio_account_sid || !tenant.twilio_auth_token) {
+      return res.status(500).json({ error: 'Credenciales de Twilio no configuradas' });
+    }
+
+    // Crear autenticación básica para Twilio
+    const auth = Buffer.from(`${tenant.twilio_account_sid}:${tenant.twilio_auth_token}`).toString('base64');
+
+    // Determinar si es HTTP o HTTPS
+    const url = new URL(message.media_url);
+    const isHttps = url.protocol === 'https:';
+    const httpModule = isHttps ? https : http;
+
+    // Hacer la solicitud a Twilio con autenticación
+    const options = {
+      hostname: url.hostname,
+      port: url.port || (isHttps ? 443 : 80),
+      path: url.pathname + url.search,
+      method: 'GET',
+      headers: {
+        'Authorization': `Basic ${auth}`
+      }
+    };
+
+    httpModule.get(options, (twilioRes) => {
+      // Establecer headers de respuesta
+      res.setHeader('Content-Type', message.media_type || 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache por 1 año
+      
+      // Si hay error en la respuesta de Twilio
+      if (twilioRes.statusCode !== 200) {
+        return res.status(twilioRes.statusCode || 500).json({ error: 'Error obteniendo media de Twilio' });
+      }
+
+      // Pipe la respuesta de Twilio al cliente
+      twilioRes.pipe(res);
+    }).on('error', (error) => {
+      console.error('Error obteniendo media de Twilio:', error);
+      res.status(500).json({ error: 'Error obteniendo media' });
+    });
+
+  } catch (error) {
+    console.error('Error en proxy de media:', error);
+    res.status(500).json({ error: 'Error al obtener media' });
   }
 });
 

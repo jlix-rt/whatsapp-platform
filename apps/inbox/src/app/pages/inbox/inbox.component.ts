@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked }
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InboxApiService, Store, Conversation, Message } from '../../services/inbox-api.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-inbox',
@@ -296,6 +297,20 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       document.body.removeChild(input);
       alert(`Coordenadas copiadas: ${coordinates}`);
     });
+  }
+
+  getMediaUrl(message: Message): string {
+    if (!message.media_url || !message.id) {
+      return '';
+    }
+    // Usar el endpoint proxy del backend en lugar de la URL directa de Twilio
+    return `${environment.apiUrl}/api/messages/${message.id}/media`;
+  }
+
+  handleImageError(event: any) {
+    console.error('Error cargando imagen:', event);
+    // Opcional: mostrar una imagen placeholder o mensaje de error
+    event.target.style.display = 'none';
   }
 }
 
