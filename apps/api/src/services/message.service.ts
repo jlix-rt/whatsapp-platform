@@ -18,6 +18,7 @@ export interface Conversation {
   human_handled: boolean;
   created_at: Date;
   updated_at: Date;
+  deleted_at?: Date | null;
 }
 
 export interface Message {
@@ -188,7 +189,7 @@ export const getConversations = async (storeId: number): Promise<any[]> => {
             (SELECT m.body FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message,
             (SELECT m.direction FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message_direction
      FROM conversations c
-     WHERE c.store_id = $1
+     WHERE c.store_id = $1 AND c.deleted_at IS NULL
      ORDER BY c.updated_at DESC`,
     [storeId]
   );
@@ -262,4 +263,23 @@ export const hasOutboundMessages = async (conversationId: number): Promise<boole
     [conversationId]
   );
   return parseInt(result.rows[0].count) > 0;
+};
+
+/**
+ * Eliminar lógicamente una conversación (soft delete)
+ */
+export const deleteConversation = async (conversationId: number): Promise<Conversation> => {
+  const result = await pool.query(
+    `UPDATE conversations
+     SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING *`,
+    [conversationId]
+  );
+  
+  if (result.rowCount === 0) {
+    throw new Error(`No se encontró la conversación con id ${conversationId} o ya está eliminada`);
+  }
+  
+  return result.rows[0];
 };
