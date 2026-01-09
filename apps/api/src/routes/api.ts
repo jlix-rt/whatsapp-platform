@@ -381,7 +381,7 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
       // Manejar redirecciones (301, 302, 307, 308)
       if (twilioRes.statusCode === 301 || twilioRes.statusCode === 302 || twilioRes.statusCode === 307 || twilioRes.statusCode === 308) {
         const location = twilioRes.headers.location;
-        if (!location) {
+        if (!location || typeof location !== 'string') {
           console.error(`❌ Redirección sin header Location: Status ${twilioRes.statusCode}`);
           return res.status(500).json({ error: 'Error: redirección sin Location header' });
         }
@@ -389,7 +389,7 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
         console.log(`🔄 Siguiendo redirección a: ${location}`);
         
         // Parsear la URL de redirección
-        const redirectUrl = new URL(location, message.media_url);
+        const redirectUrl = new URL(location, message.media_url || undefined);
         const redirectIsHttps = redirectUrl.protocol === 'https:';
         const redirectHttpModule = redirectIsHttps ? https : http;
         
