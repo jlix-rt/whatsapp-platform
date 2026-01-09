@@ -45,23 +45,18 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     return res.status(200).end();
   }
 
-  // Modo BOT: responder automáticamente
+  // Modo BOT: enviar mensaje de bienvenida y cambiar a modo HUMAN
   if (conversation.mode === 'BOT') {
-    // Si el usuario responde "2", cambiar a modo HUMAN
-    if (body === '2') {
-      await updateConversationMode(conversation.id, 'HUMAN');
-      const responseMessage = 'Alguien se comunicará contigo en breve';
-      const sent = await sendText(from, responseMessage, tenant);
-      await saveMessage(conversation.id, 'outbound', responseMessage);
-      console.log(`🤖 Conversación ${conversation.id} cambiada a modo HUMAN${sent ? '' : ' (simulado)'}`);
-      return res.status(200).end();
-    }
-
-    // Responder con el menú automático
-    const menuMessage = '¿Qué deseas hacer?\n1. Hacer pedido\n2. Hablar con una persona';
-    const sent = await sendText(from, menuMessage, tenant);
-    await saveMessage(conversation.id, 'outbound', menuMessage);
-    console.log(`🤖 Respuesta automática enviada - Conversación ${conversation.id}${sent ? '' : ' (simulado)'}`);
+    const welcomeMessage = 'Hola, mucho gusto. Gracias por escribirnos. Actualmente estamos teniendo inconvenientes con nuestro canal por WhatsApp por lo que podemos demorarnos en contestar.\nTambién puedes escribirnos por instagram (@crunchypawsgt), facebook (Cruchy paws) o al WhatssApp +50258569667';
+    
+    // Enviar mensaje de bienvenida
+    const sent = await sendText(from, welcomeMessage, tenant);
+    await saveMessage(conversation.id, 'outbound', welcomeMessage);
+    
+    // Cambiar a modo HUMAN después de enviar el mensaje
+    await updateConversationMode(conversation.id, 'HUMAN');
+    
+    console.log(`🤖 Mensaje de bienvenida enviado y conversación ${conversation.id} cambiada a modo HUMAN${sent ? '' : ' (simulado)'}`);
     return res.status(200).end();
   }
 
