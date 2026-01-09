@@ -27,6 +27,10 @@ export interface Message {
   direction: 'inbound' | 'outbound';
   body: string;
   twilio_message_sid?: string;
+  media_url?: string | null;
+  media_type?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   created_at: Date;
 }
 
@@ -164,13 +168,17 @@ export const saveMessage = async (
   conversationId: number,
   direction: 'inbound' | 'outbound',
   body: string,
-  twilioMessageSid?: string
+  twilioMessageSid?: string,
+  mediaUrl?: string | null,
+  mediaType?: string | null,
+  latitude?: number | null,
+  longitude?: number | null
 ): Promise<Message> => {
   const result = await pool.query(
-    `INSERT INTO messages (conversation_id, direction, body, twilio_message_sid)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO messages (conversation_id, direction, body, twilio_message_sid, media_url, media_type, latitude, longitude)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [conversationId, direction, body, twilioMessageSid]
+    [conversationId, direction, body, twilioMessageSid, mediaUrl || null, mediaType || null, latitude || null, longitude || null]
   );
   return result.rows[0];
 };

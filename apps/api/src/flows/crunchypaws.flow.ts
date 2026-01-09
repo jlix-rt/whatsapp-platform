@@ -23,14 +23,37 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     return res.status(400).json({ error: 'From es requerido' });
   }
 
+  // Extraer información de media (imágenes, videos, etc.)
+  const numMedia = parseInt(req.body.NumMedia || '0');
+  let mediaUrl: string | null = null;
+  let mediaType: string | null = null;
+  
+  if (numMedia > 0 && req.body.MediaUrl0) {
+    mediaUrl = req.body.MediaUrl0;
+    mediaType = req.body.MediaContentType0 || null;
+  }
+
+  // Extraer información de ubicación
+  const latitude = req.body.Latitude ? parseFloat(req.body.Latitude) : null;
+  const longitude = req.body.Longitude ? parseFloat(req.body.Longitude) : null;
+
   // Obtener o crear conversación
   let conversation = await getConversation(storeId, from);
   if (!conversation) {
     conversation = await getOrCreateConversation(storeId, from);
   }
   
-  // Guardar mensaje entrante
-  await saveMessage(conversation.id, 'inbound', body, req.body.MessageSid);
+  // Guardar mensaje entrante con media y ubicación
+  await saveMessage(
+    conversation.id, 
+    'inbound', 
+    body || (mediaUrl ? '[Imagen]' : latitude && longitude ? '[Ubicación]' : '[Sin texto]'), 
+    req.body.MessageSid,
+    mediaUrl,
+    mediaType,
+    latitude,
+    longitude
+  );
 
   // Obtener el tenant completo para usar sus credenciales de Twilio
   const tenant = await getStoreById(storeId);
@@ -47,7 +70,7 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
 
   // Modo BOT: enviar mensaje de bienvenida y cambiar a modo HUMAN
   if (conversation.mode === 'BOT') {
-    const welcomeMessage = 'Hola, mucho gusto. Gracias por escribirnos. \nActualmente estamos teniendo inconvenientes con nuestro canal por WhatsApp por lo que podemos demorarnos en contestar.\nTambién puedes escribirnos por instagram (@crunchypawsgt), facebook (Cruchy paws) o al WhatssApp +50258569667';
+    const welcomeMessage = 'Hola, mucho gusto. Gracias por escribirnos. \nActualmente estamos trabajando en el canal de WhatsApp por lo que podemos demorarnos en contestar.\nTambién puedes escribirnos por instagram (@crunchypawsgt), facebook (Cruchy paws) o al WhatssApp +50258569667';
     
     // Enviar mensaje de bienvenida
     const sent = await sendText(from, welcomeMessage, tenant);

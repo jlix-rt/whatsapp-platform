@@ -43,6 +43,17 @@
 .message.inbound{align-self:flex-start;background-color:#e5e5e5;color:#333}
 .message.outbound{align-self:flex-end;background-color:#25D366;color:white}
 .message-content{margin-bottom:.25rem}
+.message-media{margin-bottom:.5rem}
+.message-image{max-width:100%;border-radius:8px;display:block}
+.message-location{padding:.5rem;background-color:rgba(255,255,255,.2);border-radius:8px;margin-bottom:.5rem}
+.location-info{display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem;font-weight:500}
+.location-icon{font-size:1.2rem}
+.location-coordinates{font-size:.85rem;opacity:.9;margin-bottom:.5rem;font-family:monospace}
+.copy-coordinates-button,.open-map-button{padding:.375rem .75rem;margin-right:.5rem;margin-bottom:.25rem;background-color:rgba(255,255,255,.3);color:inherit;border:1px solid rgba(255,255,255,.5);border-radius:6px;font-size:.8rem;cursor:pointer;transition:background-color .2s}
+.copy-coordinates-button:hover,.open-map-button:hover{background-color:rgba(255,255,255,.5)}
+.message.inbound .message-location{background-color:rgba(0,0,0,.05)}
+.message.inbound .copy-coordinates-button,.message.inbound .open-map-button{background-color:#f0f0f0;color:#333;border-color:#ddd}
+.message.inbound .copy-coordinates-button:hover,.message.inbound .open-map-button:hover{background-color:#e0e0e0}
 .message-time{font-size:.75rem;opacity:.7}
 .message-input-container{padding:1rem;border-top:1px solid #e0e0e0;background-color:#fafafa;flex-shrink:0;flex-grow:0}
 .message-form{display:flex;gap:.5rem}

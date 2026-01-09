@@ -91,7 +91,38 @@
             [class.inbound]="message.direction === 'inbound'"
             [class.outbound]="message.direction === 'outbound'"
           >
-            <div class="message-content">
+            <!-- Imagen -->
+            <div *ngIf="message.media_url && message.media_type?.startsWith('image/')" class="message-media">
+              <img [src]="message.media_url" [alt]="message.body || 'Imagen'" class="message-image" />
+            </div>
+            
+            <!-- Ubicación -->
+            <div *ngIf="message.latitude && message.longitude" class="message-location">
+              <div class="location-info">
+                <span class="location-icon">📍</span>
+                <span class="location-text">Ubicación compartida</span>
+              </div>
+              <div class="location-coordinates">
+                Lat: {{ message.latitude | number:'1.6-6' }}, Lng: {{ message.longitude | number:'1.6-6' }}
+              </div>
+              <button 
+                class="copy-coordinates-button"
+                (click)="copyCoordinates(message.latitude!, message.longitude!)"
+                title="Copiar coordenadas"
+              >
+                📋 Copiar coordenadas
+              </button>
+              <a 
+                [href]="'https://www.google.com/maps?q=' + message.latitude + ',' + message.longitude"
+                target="_blank"
+                class="open-map-button"
+              >
+                🗺️ Abrir en Google Maps
+              </a>
+            </div>
+            
+            <!-- Contenido de texto -->
+            <div *ngIf="message.body && !message.body.startsWith('[')" class="message-content">
               {{ message.body }}
             </div>
             <div class="message-time">

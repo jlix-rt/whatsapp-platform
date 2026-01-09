@@ -27,6 +27,10 @@ export interface Message {
   direction: 'inbound' | 'outbound';
   body: string;
   twilio_message_sid?: string;
+  media_url?: string | null;
+  media_type?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   created_at: string;
 }
 

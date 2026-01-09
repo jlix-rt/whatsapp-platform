@@ -279,5 +279,23 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       }
     });
   }
+
+  copyCoordinates(latitude: number, longitude: number) {
+    const coordinates = `${latitude},${longitude}`;
+    navigator.clipboard.writeText(coordinates).then(() => {
+      // Mostrar feedback visual (podrías usar un toast o alert)
+      alert(`Coordenadas copiadas: ${coordinates}`);
+    }).catch(err => {
+      console.error('Error copiando coordenadas:', err);
+      // Fallback: crear un input temporal para copiar
+      const input = document.createElement('input');
+      input.value = coordinates;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      alert(`Coordenadas copiadas: ${coordinates}`);
+    });
+  }
 }
 

@@ -145,8 +145,44 @@ CREATE TABLE IF NOT EXISTS messages (
   direction VARCHAR(10) NOT NULL CHECK (direction IN ('inbound', 'outbound')),
   body TEXT NOT NULL,
   twilio_message_sid VARCHAR(100),
+  media_url TEXT,
+  media_type VARCHAR(50),
+  latitude DECIMAL(10, 8),
+  longitude DECIMAL(11, 8),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migración: agregar campos de media y ubicación si no existen
+DO $$ 
+BEGIN
+  -- Agregar media_url si no existe
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'messages' 
+                 AND column_name = 'media_url') THEN
+    ALTER TABLE messages ADD COLUMN media_url TEXT;
+  END IF;
+  
+  -- Agregar media_type si no existe
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'messages' 
+                 AND column_name = 'media_type') THEN
+    ALTER TABLE messages ADD COLUMN media_type VARCHAR(50);
+  END IF;
+  
+  -- Agregar latitude si no existe
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'messages' 
+                 AND column_name = 'latitude') THEN
+    ALTER TABLE messages ADD COLUMN latitude DECIMAL(10, 8);
+  END IF;
+  
+  -- Agregar longitude si no existe
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'messages' 
+                 AND column_name = 'longitude') THEN
+    ALTER TABLE messages ADD COLUMN longitude DECIMAL(11, 8);
+  END IF;
+END $$;
 
 -- Índices para mejorar rendimiento
 CREATE INDEX IF NOT EXISTS idx_conversations_store_phone ON conversations(store_id, phone_number);
