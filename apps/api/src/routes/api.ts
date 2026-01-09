@@ -306,42 +306,51 @@ router.delete('/conversations/:conversationId', async (req: Request, res: Respon
  */
 router.get('/messages/:messageId/media', async (req: Request, res: Response) => {
   try {
+    console.log(`🖼️ Solicitud de media recibida: messageId=${req.params.messageId}`);
+    
     // Validar que el tenant fue identificado por el middleware
     if (!req.tenant) {
+      console.error('❌ Tenant no identificado en proxy de media');
       return res.status(400).json({ error: 'Tenant no identificado' });
     }
 
     const messageId = parseInt(req.params.messageId);
 
     if (isNaN(messageId)) {
+      console.error(`❌ messageId inválido: ${req.params.messageId}`);
       return res.status(400).json({ error: 'messageId inválido' });
     }
 
     // Obtener el mensaje
     const message = await getMessageById(messageId);
     if (!message) {
+      console.error(`❌ Mensaje no encontrado: ${messageId}`);
       return res.status(404).json({ error: 'Mensaje no encontrado' });
     }
 
     // Validar que el mensaje tiene media_url
     if (!message.media_url) {
+      console.error(`❌ Mensaje ${messageId} no tiene media_url`);
       return res.status(400).json({ error: 'El mensaje no tiene media' });
     }
 
     // Obtener la conversación para validar el tenant
     const conversation = await getConversationById(message.conversation_id);
     if (!conversation) {
+      console.error(`❌ Conversación no encontrada: ${message.conversation_id}`);
       return res.status(404).json({ error: 'Conversación no encontrada' });
     }
 
     // Validar que la conversación pertenece al tenant actual
     if (conversation.store_id !== req.tenant.id) {
+      console.error(`❌ Acceso denegado: conversation.store_id=${conversation.store_id}, req.tenant.id=${req.tenant.id}`);
       return res.status(403).json({ error: 'No tienes acceso a este mensaje' });
     }
 
     // Obtener las credenciales de Twilio del tenant
     const tenant = await getStoreById(req.tenant.id);
     if (!tenant || !tenant.twilio_account_sid || !tenant.twilio_auth_token) {
+      console.error(`❌ Credenciales de Twilio no configuradas para tenant ${req.tenant.id}`);
       return res.status(500).json({ error: 'Credenciales de Twilio no configuradas' });
     }
 
@@ -352,6 +361,8 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
     const url = new URL(message.media_url);
     const isHttps = url.protocol === 'https:';
     const httpModule = isHttps ? https : http;
+
+    console.log(`🔄 Descargando media de Twilio: ${url.hostname}${url.pathname}`);
 
     // Hacer la solicitud a Twilio con autenticación
     const options = {
@@ -365,24 +376,37 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
     };
 
     const twilioRequest = httpModule.get(options, (twilioRes) => {
-      // Establecer headers de respuesta
-      res.setHeader('Content-Type', message.media_type || 'image/jpeg');
+      console.log(`📥 Respuesta de Twilio recibida: Status ${twilioRes.statusCode}, Content-Type: ${twilioRes.headers['content-type']}`);
+      
+      // Establecer headers de respuesta ANTES de hacer pipe
+      res.setHeader('Content-Type', twilioRes.headers['content-type'] || message.media_type || 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache por 1 año
       res.setHeader('Access-Control-Allow-Origin', '*'); // Permitir CORS para imágenes
       
       // Si hay error en la respuesta de Twilio
       if (twilioRes.statusCode !== 200) {
         console.error(`❌ Error obteniendo media de Twilio: Status ${twilioRes.statusCode}`);
-        return res.status(twilioRes.statusCode || 500).json({ error: 'Error obteniendo media de Twilio' });
+        let errorBody = '';
+        twilioRes.on('data', (chunk) => { errorBody += chunk.toString(); });
+        twilioRes.on('end', () => {
+          console.error(`❌ Cuerpo del error: ${errorBody}`);
+          return res.status(twilioRes.statusCode || 500).json({ error: 'Error obteniendo media de Twilio' });
+        });
+        return;
       }
 
       // Pipe la respuesta de Twilio al cliente
       twilioRes.pipe(res);
+      twilioRes.on('end', () => {
+        console.log(`✅ Media enviada exitosamente para mensaje ${messageId}`);
+      });
     });
 
     twilioRequest.on('error', (error) => {
       console.error('❌ Error obteniendo media de Twilio:', error);
-      res.status(500).json({ error: 'Error obteniendo media' });
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Error obteniendo media' });
+      }
     });
 
   } catch (error) {
