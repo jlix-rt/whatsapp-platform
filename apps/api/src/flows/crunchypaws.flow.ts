@@ -47,7 +47,7 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
 
   // Modo BOT: enviar mensaje de bienvenida y cambiar a modo HUMAN
   if (conversation.mode === 'BOT') {
-    const welcomeMessage = 'Hola, mucho gusto. Gracias por escribirnos. Actualmente estamos teniendo inconvenientes con nuestro canal por WhatsApp por lo que podemos demorarnos en contestar.\nTambién puedes escribirnos por instagram (@crunchypawsgt), facebook (Cruchy paws) o al WhatssApp +50258569667';
+    const welcomeMessage = 'Hola, mucho gusto. Gracias por escribirnos. \nActualmente estamos teniendo inconvenientes con nuestro canal por WhatsApp por lo que podemos demorarnos en contestar.\nTambién puedes escribirnos por instagram (@crunchypawsgt), facebook (Cruchy paws) o al WhatssApp +50258569667';
     
     // Enviar mensaje de bienvenida
     const sent = await sendText(from, welcomeMessage, tenant);
