@@ -355,20 +355,24 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
       }
     };
 
-    httpModule.get(options, (twilioRes) => {
+    const twilioRequest = httpModule.get(options, (twilioRes) => {
       // Establecer headers de respuesta
       res.setHeader('Content-Type', message.media_type || 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache por 1 año
+      res.setHeader('Access-Control-Allow-Origin', '*'); // Permitir CORS para imágenes
       
       // Si hay error en la respuesta de Twilio
       if (twilioRes.statusCode !== 200) {
+        console.error(`❌ Error obteniendo media de Twilio: Status ${twilioRes.statusCode}`);
         return res.status(twilioRes.statusCode || 500).json({ error: 'Error obteniendo media de Twilio' });
       }
 
       // Pipe la respuesta de Twilio al cliente
       twilioRes.pipe(res);
-    }).on('error', (error) => {
-      console.error('Error obteniendo media de Twilio:', error);
+    });
+
+    twilioRequest.on('error', (error) => {
+      console.error('❌ Error obteniendo media de Twilio:', error);
       res.status(500).json({ error: 'Error obteniendo media' });
     });
 

@@ -93,7 +93,13 @@
           >
             <!-- Imagen -->
             <div *ngIf="message.media_url && message.media_type?.startsWith('image/')" class="message-media">
-              <img [src]="getMediaUrl(message)" [alt]="message.body || 'Imagen'" class="message-image" (error)="handleImageError($event)" />
+              <img 
+                [src]="getMediaProxyUrl(message.id)" 
+                [alt]="message.body || 'Imagen'" 
+                class="message-image" 
+                (error)="handleImageError($event, message)" 
+                loading="lazy"
+              />
             </div>
             
             <!-- Ubicación -->

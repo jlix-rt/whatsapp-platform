@@ -299,16 +299,23 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     });
   }
 
-  getMediaUrl(message: Message): string {
-    if (!message.media_url || !message.id) {
+  getMediaProxyUrl(messageId: number): string {
+    if (!messageId) {
+      console.warn('⚠️ getMediaProxyUrl llamado sin messageId');
       return '';
     }
     // Usar el endpoint proxy del backend en lugar de la URL directa de Twilio
-    return `${environment.apiUrl}/api/messages/${message.id}/media`;
+    // En producción, environment.apiUrl puede estar vacío, así que usar la misma lógica que inbox-api.service
+    const baseUrl = environment.apiUrl || '';
+    const proxyUrl = `${baseUrl}/api/messages/${messageId}/media`;
+    console.log('🔗 getMediaProxyUrl:', { messageId, baseUrl, proxyUrl });
+    return proxyUrl;
   }
 
-  handleImageError(event: any) {
+  handleImageError(event: any, message: Message) {
     console.error('Error cargando imagen:', event);
+    console.error('Mensaje:', message);
+    console.error('URL intentada:', this.getMediaProxyUrl(message.id));
     // Opcional: mostrar una imagen placeholder o mensaje de error
     event.target.style.display = 'none';
   }
