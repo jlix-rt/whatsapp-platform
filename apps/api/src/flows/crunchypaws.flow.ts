@@ -44,7 +44,7 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
   }
   
   // Guardar mensaje entrante con media y ubicación
-  await saveMessage(
+  const savedMessage = await saveMessage(
     conversation.id, 
     'inbound', 
     body || (mediaUrl ? '[Imagen]' : latitude && longitude ? '[Ubicación]' : '[Sin texto]'), 
@@ -54,6 +54,16 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     latitude,
     longitude
   );
+  
+  // Log para debugging de media
+  if (mediaUrl) {
+    console.log(`📷 Mensaje con media guardado:`, {
+      messageId: savedMessage.id,
+      mediaUrl: mediaUrl.substring(0, 100) + '...',
+      mediaType,
+      conversationId: conversation.id
+    });
+  }
 
   // Obtener el tenant completo para usar sus credenciales de Twilio
   const tenant = await getStoreById(storeId);

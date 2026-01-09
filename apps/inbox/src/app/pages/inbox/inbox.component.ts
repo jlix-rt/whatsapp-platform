@@ -128,6 +128,20 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       next: (messages) => {
         const previousLength = this.messages.length;
         this.messages = messages;
+        
+        // Log para debugging de mensajes con media
+        const messagesWithMedia = messages.filter(m => m.media_url);
+        if (messagesWithMedia.length > 0) {
+          console.log('📷 Mensajes con media recibidos en frontend:', 
+            messagesWithMedia.map(m => ({ 
+              id: m.id, 
+              media_url: m.media_url?.substring(0, 50), 
+              media_type: m.media_type,
+              hasId: !!m.id
+            }))
+          );
+        }
+        
         // Scroll solo si hay nuevos mensajes
         if (messages.length > previousLength) {
           this.shouldScrollToBottom = true;

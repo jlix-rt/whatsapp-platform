@@ -92,6 +92,15 @@ router.get('/conversations/:conversationId/messages', async (req: Request, res: 
     }
 
     const messages = await getMessages(conversationId);
+    
+    // Log para debugging de mensajes con media
+    const messagesWithMedia = messages.filter(m => m.media_url);
+    if (messagesWithMedia.length > 0) {
+      console.log(`📷 Mensajes con media encontrados: ${messagesWithMedia.length}`, 
+        messagesWithMedia.map(m => ({ id: m.id, media_url: m.media_url?.substring(0, 50), media_type: m.media_type }))
+      );
+    }
+    
     res.json(messages);
   } catch (error) {
     console.error('Error obteniendo mensajes:', error);
