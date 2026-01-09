@@ -98,6 +98,7 @@
                 [alt]="message.body || 'Imagen'" 
                 class="message-image" 
                 (error)="handleImageError($event, message)" 
+                (click)="openImageModal(message.id)"
                 loading="lazy"
               />
             </div>
@@ -162,3 +163,23 @@
   </div>
 </div>
 
+<!-- Modal de imagen con zoom -->
+<div *ngIf="showImageModal" class="image-modal" (click)="closeImageModal()" (keydown)="onKeyDown($event)" tabindex="0">
+  <div class="image-modal-content" (click)="$event.stopPropagation()">
+    <button class="image-modal-close" (click)="closeImageModal()" title="Cerrar (ESC)">×</button>
+    <div class="image-modal-zoom-controls">
+      <button class="zoom-button" (click)="zoomOut()" title="Alejar (-)">−</button>
+      <span class="zoom-level">{{ imageZoom }}%</span>
+      <button class="zoom-button" (click)="zoomIn()" title="Acercar (+)">+</button>
+      <button class="zoom-reset-button" (click)="resetZoom()" title="Restablecer zoom">↺</button>
+    </div>
+    <div class="image-modal-image-container">
+      <img 
+        [src]="modalImageUrl" 
+        [style.transform]="'scale(' + (imageZoom / 100) + ')'"
+        class="image-modal-image"
+        alt="Imagen ampliada"
+      />
+    </div>
+  </div>
+</div>

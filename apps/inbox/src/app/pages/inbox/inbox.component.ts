@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InboxApiService, Store, Conversation, Message } from '../../services/inbox-api.service';
@@ -24,6 +24,11 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   sending: boolean = false;
   resettingBot: boolean = false;
   deleting: boolean = false;
+  
+  // Modal de imagen
+  showImageModal: boolean = false;
+  modalImageUrl: string = '';
+  imageZoom: number = 100;
   
   private pollingInterval: any;
   private shouldScrollToBottom: boolean = false;
@@ -332,6 +337,42 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     console.error('URL intentada:', this.getMediaProxyUrl(message.id));
     // Opcional: mostrar una imagen placeholder o mensaje de error
     event.target.style.display = 'none';
+  }
+
+  openImageModal(messageId: number) {
+    this.modalImageUrl = this.getMediaProxyUrl(messageId);
+    this.imageZoom = 100;
+    this.showImageModal = true;
+    // Prevenir scroll del body cuando el modal está abierto
+    document.body.style.overflow = 'hidden';
+  }
+
+  closeImageModal() {
+    this.showImageModal = false;
+    this.modalImageUrl = '';
+    this.imageZoom = 100;
+    // Restaurar scroll del body
+    document.body.style.overflow = '';
+  }
+
+  zoomIn() {
+    this.imageZoom = Math.min(this.imageZoom + 25, 300);
+  }
+
+  zoomOut() {
+    this.imageZoom = Math.max(this.imageZoom - 25, 50);
+  }
+
+  resetZoom() {
+    this.imageZoom = 100;
+  }
+
+  // Cerrar modal con ESC
+  @HostListener('document:keydown', ['$event'])
+  onKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && this.showImageModal) {
+      this.closeImageModal();
+    }
   }
 }
 
