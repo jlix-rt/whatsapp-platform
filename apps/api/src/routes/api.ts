@@ -378,6 +378,62 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
     const twilioRequest = httpModule.get(options, (twilioRes) => {
       console.log(`📥 Respuesta de Twilio recibida: Status ${twilioRes.statusCode}, Content-Type: ${twilioRes.headers['content-type']}`);
       
+      // Manejar redirecciones (301, 302, 307, 308)
+      if (twilioRes.statusCode === 301 || twilioRes.statusCode === 302 || twilioRes.statusCode === 307 || twilioRes.statusCode === 308) {
+        const location = twilioRes.headers.location;
+        if (!location) {
+          console.error(`❌ Redirección sin header Location: Status ${twilioRes.statusCode}`);
+          return res.status(500).json({ error: 'Error: redirección sin Location header' });
+        }
+        
+        console.log(`🔄 Siguiendo redirección a: ${location}`);
+        
+        // Parsear la URL de redirección
+        const redirectUrl = new URL(location, message.media_url);
+        const redirectIsHttps = redirectUrl.protocol === 'https:';
+        const redirectHttpModule = redirectIsHttps ? https : http;
+        
+        // Hacer nueva solicitud a la URL de redirección
+        const redirectOptions = {
+          hostname: redirectUrl.hostname,
+          port: redirectUrl.port || (redirectIsHttps ? 443 : 80),
+          path: redirectUrl.pathname + redirectUrl.search,
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${auth}`
+          }
+        };
+        
+        const redirectRequest = redirectHttpModule.get(redirectOptions, (redirectRes) => {
+          console.log(`📥 Respuesta de redirección: Status ${redirectRes.statusCode}, Content-Type: ${redirectRes.headers['content-type']}`);
+          
+          // Establecer headers de respuesta ANTES de hacer pipe
+          res.setHeader('Content-Type', redirectRes.headers['content-type'] || message.media_type || 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=31536000');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          
+          if (redirectRes.statusCode !== 200) {
+            console.error(`❌ Error en redirección: Status ${redirectRes.statusCode}`);
+            return res.status(redirectRes.statusCode || 500).json({ error: 'Error obteniendo media de Twilio' });
+          }
+          
+          // Pipe la respuesta al cliente
+          redirectRes.pipe(res);
+          redirectRes.on('end', () => {
+            console.log(`✅ Media enviada exitosamente para mensaje ${messageId}`);
+          });
+        });
+        
+        redirectRequest.on('error', (error) => {
+          console.error('❌ Error en redirección:', error);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Error obteniendo media' });
+          }
+        });
+        
+        return;
+      }
+      
       // Establecer headers de respuesta ANTES de hacer pipe
       res.setHeader('Content-Type', twilioRes.headers['content-type'] || message.media_type || 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache por 1 año
