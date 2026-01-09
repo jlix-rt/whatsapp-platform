@@ -62,6 +62,17 @@
               <span *ngIf="!isPending(selectedConversation) && selectedConversation.human_handled" class="badge-handled">✓ Atendida</span>
             </span>
           </div>
+          <div class="conversation-actions">
+            <button 
+              *ngIf="selectedConversation.mode === 'HUMAN'"
+              (click)="resetToBot()"
+              class="reset-bot-button"
+              [disabled]="resettingBot"
+              title="Regresar al modo BOT"
+            >
+              {{ resettingBot ? 'Cambiando...' : '🤖 Regresar a BOT' }}
+            </button>
+          </div>
         </div>
 
         <!-- Lista de mensajes -->

@@ -58,5 +58,12 @@ export class InboxApiService {
   replyToConversation(conversationId: number, text: string): Observable<ReplyResponse> {
     return this.http.post<ReplyResponse>(`${this.apiUrl}/conversations/${conversationId}/reply`, { text });
   }
+
+  resetConversationToBot(conversationId: number): Observable<{ success: boolean; conversation: Conversation }> {
+    return this.http.post<{ success: boolean; conversation: Conversation }>(
+      `${this.apiUrl}/conversations/${conversationId}/reset-bot`,
+      {}
+    );
+  }
 }
 

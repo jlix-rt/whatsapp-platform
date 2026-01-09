@@ -192,17 +192,50 @@
   border-bottom: 1px solid #e0e0e0;
   background-color: #fafafa;
   flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
 }
 
 .conversation-info {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
 
   h3 {
     margin: 0;
     font-size: 1.1rem;
     color: #333;
+  }
+}
+
+.conversation-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reset-bot-button {
+  padding: 0.5rem 1rem;
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background-color: #f57c00;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 }
 

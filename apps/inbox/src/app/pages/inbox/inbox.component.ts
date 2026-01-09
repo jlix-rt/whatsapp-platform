@@ -21,6 +21,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   newMessage: string = '';
   loading: boolean = false;
   sending: boolean = false;
+  resettingBot: boolean = false;
   
   private pollingInterval: any;
   private shouldScrollToBottom: boolean = false;
@@ -219,6 +220,34 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     
     // Si no hay información suficiente, no considerar como pendiente
     return false;
+  }
+
+  resetToBot() {
+    if (!this.selectedConversation || this.resettingBot) {
+      return;
+    }
+
+    if (!confirm('¿Estás seguro de que quieres regresar esta conversación al modo BOT? El bot responderá automáticamente cuando llegue un nuevo mensaje.')) {
+      return;
+    }
+
+    this.resettingBot = true;
+    this.apiService.resetConversationToBot(this.selectedConversation.id).subscribe({
+      next: (response) => {
+        if (response.success) {
+          // Actualizar la conversación seleccionada con el nuevo modo
+          this.selectedConversation!.mode = 'BOT';
+          // Recargar conversaciones para actualizar la lista
+          this.loadConversations();
+        }
+        this.resettingBot = false;
+      },
+      error: (error) => {
+        console.error('Error reseteando a modo BOT:', error);
+        alert('Error al regresar al modo BOT. Por favor intenta de nuevo.');
+        this.resettingBot = false;
+      }
+    });
   }
 }
 
