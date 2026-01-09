@@ -22,6 +22,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   loading: boolean = false;
   sending: boolean = false;
   resettingBot: boolean = false;
+  deleting: boolean = false;
   
   private pollingInterval: any;
   private shouldScrollToBottom: boolean = false;
@@ -246,6 +247,35 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
         console.error('Error reseteando a modo BOT:', error);
         alert('Error al regresar al modo BOT. Por favor intenta de nuevo.');
         this.resettingBot = false;
+      }
+    });
+  }
+
+  deleteConversation() {
+    if (!this.selectedConversation || this.deleting) {
+      return;
+    }
+
+    if (!confirm('¿Estás seguro de que quieres eliminar esta conversación? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    this.deleting = true;
+    this.apiService.deleteConversation(this.selectedConversation.id).subscribe({
+      next: (response) => {
+        if (response.success) {
+          // Limpiar la conversación seleccionada
+          this.selectedConversation = null;
+          this.messages = [];
+          // Recargar conversaciones para actualizar la lista (la eliminada no aparecerá)
+          this.loadConversations();
+        }
+        this.deleting = false;
+      },
+      error: (error) => {
+        console.error('Error eliminando conversación:', error);
+        alert('Error al eliminar la conversación. Por favor intenta de nuevo.');
+        this.deleting = false;
       }
     });
   }

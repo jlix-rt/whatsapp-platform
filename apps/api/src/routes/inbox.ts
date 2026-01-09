@@ -55,6 +55,11 @@ router.get('/messages/:conversationId', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
     }
 
+    // Validar que la conversación no esté eliminada
+    if (conversation.deleted_at) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
     const messages = await getMessages(conversationId);
     res.json(messages);
   } catch (error) {

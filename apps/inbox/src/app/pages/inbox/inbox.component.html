@@ -72,6 +72,14 @@
             >
               {{ resettingBot ? 'Cambiando...' : '🤖 Regresar a BOT' }}
             </button>
+            <button 
+              (click)="deleteConversation()"
+              class="delete-button"
+              [disabled]="deleting"
+              title="Eliminar conversación"
+            >
+              {{ deleting ? 'Eliminando...' : '🗑️ Eliminar' }}
+            </button>
           </div>
         </div>
 

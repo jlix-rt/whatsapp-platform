@@ -129,6 +129,13 @@ BEGIN
                  AND column_name = 'human_handled') THEN
     ALTER TABLE conversations ADD COLUMN human_handled BOOLEAN NOT NULL DEFAULT false;
   END IF;
+  
+  -- Agregar columna deleted_at si no existe (para soft delete)
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'conversations' 
+                 AND column_name = 'deleted_at') THEN
+    ALTER TABLE conversations ADD COLUMN deleted_at TIMESTAMP NULL;
+  END IF;
 END $$;
 
 -- Tabla de mensajes

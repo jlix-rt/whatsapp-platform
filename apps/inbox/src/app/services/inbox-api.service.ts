@@ -65,5 +65,11 @@ export class InboxApiService {
       {}
     );
   }
+
+  deleteConversation(conversationId: number): Observable<{ success: boolean; message: string }> {
+    return this.http.delete<{ success: boolean; message: string }>(
+      `${this.apiUrl}/conversations/${conversationId}`
+    );
+  }
 }
 

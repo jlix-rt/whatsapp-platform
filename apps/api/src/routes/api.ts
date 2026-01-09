@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 // Importar tipos extendidos de Express
 import '../types/express';
-import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, updateConversationMode } from '../services/message.service';
+import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, updateConversationMode, deleteConversation } from '../services/message.service';
 import { sendText } from '../services/twilio.service';
 import { pool } from '../db/pool';
 
@@ -83,6 +83,11 @@ router.get('/conversations/:conversationId/messages', async (req: Request, res: 
       return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
     }
 
+    // Validar que la conversación no esté eliminada
+    if (conversation.deleted_at) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
     const messages = await getMessages(conversationId);
     res.json(messages);
   } catch (error) {
@@ -126,6 +131,11 @@ router.post('/conversations/:conversationId/reply', async (req: Request, res: Re
     // Validar que la conversación pertenece al tenant actual
     if (conversation.store_id !== req.tenant.id) {
       return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
+    }
+
+    // Validar que la conversación no esté eliminada
+    if (conversation.deleted_at) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
     }
 
     // Asegurar que conversationId sea un número válido
@@ -196,6 +206,11 @@ router.post('/conversations/:conversationId/reset-bot', async (req: Request, res
       return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
     }
 
+    // Validar que la conversación no esté eliminada
+    if (conversation.deleted_at) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
     // Cambiar conversación a modo BOT
     const updatedConversation = await updateConversationMode(conversationId, 'BOT');
 
@@ -213,6 +228,60 @@ router.post('/conversations/:conversationId/reset-bot', async (req: Request, res
   } catch (error) {
     console.error('Error reseteando bot:', error);
     res.status(500).json({ error: 'Error al resetear bot' });
+  }
+});
+
+/**
+ * DELETE /api/conversations/:conversationId
+ * 
+ * Elimina lógicamente una conversación (soft delete)
+ * 
+ * MULTITENANT: Valida que la conversación pertenece al tenant actual
+ */
+router.delete('/conversations/:conversationId', async (req: Request, res: Response) => {
+  try {
+    // Validar que el tenant fue identificado por el middleware
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const conversationId = parseInt(req.params.conversationId);
+
+    if (isNaN(conversationId)) {
+      return res.status(400).json({ error: 'conversationId inválido' });
+    }
+
+    // Verificar que la conversación existe y pertenece al tenant actual
+    const conversation = await getConversationById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    // Validar que la conversación pertenece al tenant actual
+    if (conversation.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
+    }
+
+    // Verificar que la conversación no esté ya eliminada
+    if (conversation.deleted_at) {
+      return res.status(400).json({ error: 'La conversación ya está eliminada' });
+    }
+
+    // Eliminar lógicamente la conversación
+    const deletedConversation = await deleteConversation(conversationId);
+
+    console.log(`🗑️ Conversación ${conversationId} eliminada lógicamente`);
+
+    res.json({
+      success: true,
+      message: 'Conversación eliminada exitosamente'
+    });
+  } catch (error: any) {
+    console.error('Error eliminando conversación:', error);
+    if (error.message && error.message.includes('ya está eliminada')) {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Error al eliminar conversación' });
   }
 });
 
