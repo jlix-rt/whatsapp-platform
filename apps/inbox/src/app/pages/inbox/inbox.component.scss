@@ -4,8 +4,11 @@
 .store-selector select{padding:.5rem;border:1px solid #ddd;border-radius:4px;font-size:1rem}
 .inbox-layout{flex:1;display:flex;overflow:hidden}
 .conversations-panel{width:350px;background-color:white;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;overflow:hidden}
-.conversations-header{padding:1rem;border-bottom:1px solid #e0e0e0}
+.conversations-header{padding:1rem;border-bottom:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center}
 .conversations-header h2{margin:0;font-size:1.25rem;font-weight:500}
+.refresh-indicator{display:flex;align-items:center;justify-content:center;width:24px;height:24px}
+.refresh-spinner{font-size:1.2rem;color:#666;animation:spin 1s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .conversations-list{flex:1;overflow-y:auto}
 .loading,.empty{padding:2rem;text-align:center;color:#666}
 .conversation-item{padding:1rem;border-bottom:1px solid #f0f0f0;cursor:pointer;transition:background-color .2s}

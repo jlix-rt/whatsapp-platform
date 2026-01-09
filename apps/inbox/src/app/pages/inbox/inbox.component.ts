@@ -21,6 +21,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   messages: Message[] = [];
   newMessage: string = '';
   loading: boolean = false;
+  refreshing: boolean = false; // Para actualizaciones sin ocultar contenido
   sending: boolean = false;
   resettingBot: boolean = false;
   deleting: boolean = false;
@@ -51,7 +52,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
         this.stores = stores;
         if (stores.length > 0) {
           this.selectedStoreId = stores[0].id;
-          this.loadConversations();
+          this.loadConversations(true); // Primera carga, mostrar loading
         }
       },
       error: (error) => {
@@ -60,10 +61,17 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     });
   }
 
-  loadConversations() {
+  loadConversations(showLoading: boolean = false) {
     if (!this.selectedStoreId) return;
 
-    this.loading = true;
+    // Solo mostrar loading completo si es la primera carga o se solicita explícitamente
+    if (showLoading || this.conversations.length === 0) {
+      this.loading = true;
+    } else {
+      // Para actualizaciones, usar refreshing para no ocultar el contenido
+      this.refreshing = true;
+    }
+
     this.apiService.getConversations(this.selectedStoreId).subscribe({
       next: (conversations) => {
         // Debug: verificar que last_message_direction esté presente
@@ -78,25 +86,36 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
             });
           }
         });
+        
+        // Preservar la conversación seleccionada antes de actualizar
+        const selectedId = this.selectedConversation?.id;
+        
         this.conversations = conversations;
         this.loading = false;
+        this.refreshing = false;
 
         // Si hay conversaciones y ninguna está seleccionada, seleccionar la primera
         if (conversations.length > 0 && !this.selectedConversation) {
           this.selectConversation(conversations[0]);
         }
 
-        // Si hay una conversación seleccionada, actualizar sus datos
-        if (this.selectedConversation) {
-          const updated = conversations.find(c => c.id === this.selectedConversation!.id);
+        // Si hay una conversación seleccionada, actualizar sus datos sin perder la selección
+        if (selectedId) {
+          const updated = conversations.find(c => c.id === selectedId);
           if (updated) {
+            // Actualizar la referencia manteniendo la misma instancia si es posible
             this.selectedConversation = updated;
+          } else {
+            // Si la conversación fue eliminada, limpiar la selección
+            this.selectedConversation = null;
+            this.messages = [];
           }
         }
       },
       error: (error) => {
         console.error('Error cargando conversaciones:', error);
         this.loading = false;
+        this.refreshing = false;
       }
     });
   }
@@ -190,11 +209,19 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   startPolling() {
     // Polling cada 5 segundos
     this.pollingInterval = setInterval(() => {
-      if (this.selectedConversation) {
-        this.loadMessages();
-        this.loadConversations();
+      if (this.selectedStoreId) {
+        // Usar refreshing en lugar de loading para no ocultar el contenido
+        this.loadConversations(false);
+        if (this.selectedConversation) {
+          this.loadMessages();
+        }
       }
     }, 5000);
+  }
+  
+  // TrackBy function para optimizar el renderizado de la lista
+  trackByConversationId(index: number, conversation: Conversation): number {
+    return conversation.id;
   }
 
   formatDate(dateString: string): string {
@@ -258,8 +285,8 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
         if (response.success) {
           // Actualizar la conversación seleccionada con el nuevo modo
           this.selectedConversation!.mode = 'BOT';
-          // Recargar conversaciones para actualizar la lista
-          this.loadConversations();
+          // Recargar conversaciones para actualizar la lista (sin ocultar contenido)
+          this.loadConversations(false);
         }
         this.resettingBot = false;
       },
@@ -287,8 +314,8 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
           // Limpiar la conversación seleccionada
           this.selectedConversation = null;
           this.messages = [];
-          // Recargar conversaciones para actualizar la lista (la eliminada no aparecerá)
-          this.loadConversations();
+          // Recargar conversaciones para actualizar la lista (la eliminada no aparecerá, sin ocultar contenido)
+          this.loadConversations(false);
         }
         this.deleting = false;
       },

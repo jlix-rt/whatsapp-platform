@@ -2,7 +2,7 @@
   <!-- Selector de tienda -->
   <div class="store-selector">
     <label for="store-select">Tienda:</label>
-    <select id="store-select" [(ngModel)]="selectedStoreId" (change)="loadConversations()">
+    <select id="store-select" [(ngModel)]="selectedStoreId" (change)="loadConversations(true)">
       <option *ngFor="let store of stores" [value]="store.id">{{ store.name }}</option>
     </select>
   </div>
@@ -12,14 +12,17 @@
     <div class="conversations-panel">
       <div class="conversations-header">
         <h2>Conversaciones</h2>
+        <div *ngIf="refreshing" class="refresh-indicator" title="Actualizando...">
+          <span class="refresh-spinner">⟳</span>
+        </div>
       </div>
       <div class="conversations-list">
-        <div *ngIf="loading" class="loading">Cargando...</div>
+        <div *ngIf="loading && conversations.length === 0" class="loading">Cargando...</div>
         <div *ngIf="!loading && conversations.length === 0" class="empty">
           No hay conversaciones
         </div>
         <div
-          *ngFor="let conv of conversations"
+          *ngFor="let conv of conversations; trackBy: trackByConversationId"
           class="conversation-item"
           [class.active]="selectedConversation?.id === conv.id"
           (click)="selectConversation(conv)"
