@@ -252,3 +252,14 @@ export const markConversationAsHandled = async (conversationId: number): Promise
   return result.rows[0];
 };
 
+/**
+ * Verificar si una conversación tiene mensajes outbound
+ */
+export const hasOutboundMessages = async (conversationId: number): Promise<boolean> => {
+  const result = await pool.query(
+    `SELECT COUNT(*) as count FROM messages
+     WHERE conversation_id = $1 AND direction = 'outbound'`,
+    [conversationId]
+  );
+  return parseInt(result.rows[0].count) > 0;
+};
