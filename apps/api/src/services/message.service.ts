@@ -302,3 +302,27 @@ export const deleteConversation = async (conversationId: number): Promise<Conver
   
   return result.rows[0];
 };
+
+/**
+ * Restaurar una conversación eliminada y ponerla en modo BOT
+ * 
+ * MULTITENANT: Esta función restaura conversaciones eliminadas cuando el usuario vuelve a escribir
+ */
+export const restoreConversation = async (
+  conversationId: number
+): Promise<Conversation> => {
+  const result = await pool.query(
+    `UPDATE conversations
+     SET deleted_at = NULL, mode = 'BOT', updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND deleted_at IS NOT NULL
+     RETURNING *`,
+    [conversationId]
+  );
+  
+  if (result.rowCount === 0) {
+    throw new Error(`No se encontró la conversación eliminada con id ${conversationId}`);
+  }
+  
+  console.log(`♻️ Conversación ${conversationId} restaurada y puesta en modo BOT`);
+  return result.rows[0];
+};

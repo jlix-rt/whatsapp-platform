@@ -1,5 +1,5 @@
 import { sendText } from '../services/twilio.service';
-import { getConversation, getOrCreateConversation, saveMessage, updateConversationMode, getStoreById } from '../services/message.service';
+import { getConversation, getOrCreateConversation, saveMessage, updateConversationMode, getStoreById, restoreConversation } from '../services/message.service';
 import { Store } from '../services/message.service';
 
 /**
@@ -41,6 +41,10 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
   let conversation = await getConversation(storeId, from);
   if (!conversation) {
     conversation = await getOrCreateConversation(storeId, from);
+  } else if (conversation.deleted_at) {
+    // Si la conversación está eliminada, restaurarla y ponerla en modo BOT
+    console.log(`♻️ Restaurando conversación eliminada ${conversation.id} para ${from}`);
+    conversation = await restoreConversation(conversation.id);
   }
   
   // Guardar mensaje entrante con media y ubicación
