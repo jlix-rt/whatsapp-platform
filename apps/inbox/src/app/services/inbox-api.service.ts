@@ -63,6 +63,15 @@ export class InboxApiService {
     return this.http.post<ReplyResponse>(`${this.apiUrl}/conversations/${conversationId}/reply`, { text });
   }
 
+  replyWithMedia(conversationId: number, file: File, text?: string): Observable<ReplyResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (text) {
+      formData.append('text', text);
+    }
+    return this.http.post<ReplyResponse>(`${this.apiUrl}/conversations/${conversationId}/reply-with-media`, formData);
+  }
+
   resetConversationToBot(conversationId: number): Observable<{ success: boolean; conversation: Conversation }> {
     return this.http.post<{ success: boolean; conversation: Conversation }>(
       `${this.apiUrl}/conversations/${conversationId}/reset-bot`,

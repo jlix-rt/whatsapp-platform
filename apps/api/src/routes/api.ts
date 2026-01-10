@@ -3,12 +3,58 @@ import { Router, Request, Response } from 'express';
 import '../types/express';
 import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, updateConversationMode, deleteConversation, getMessageById } from '../services/message.service';
 import { getStoreById } from '../services/message.service';
-import { sendText } from '../services/twilio.service';
+import { sendText, sendMedia } from '../services/twilio.service';
+import multer from 'multer';
+import * as path from 'path';
+import * as fs from 'fs';
 import { pool } from '../db/pool';
 import https from 'https';
 import http from 'http';
 
 const router = Router();
+
+// Configurar multer para manejar archivos
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    // Preservar extensión del archivo original
+    const ext = path.extname(file.originalname);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // Límite de 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    // Permitir solo imágenes y PDFs
+    const allowedMimes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, GIF, WEBP) y PDFs.'));
+    }
+  }
+});
+
+// Crear directorio de uploads si no existe
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 /**
  * GET /api/stores
@@ -188,6 +234,112 @@ router.post('/conversations/:conversationId/reply', async (req: Request, res: Re
 });
 
 /**
+ * POST /api/conversations/:conversationId/reply-with-media
+ * 
+ * Responde a una conversación específica con un archivo adjunto (imagen o PDF)
+ * 
+ * MULTITENANT: Valida que la conversación pertenece al tenant actual
+ * y usa las credenciales del tenant para enviar el mensaje
+ */
+router.post('/conversations/:conversationId/reply-with-media', upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    // Validar que el tenant fue identificado por el middleware
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const conversationId = parseInt(req.params.conversationId);
+    const text = req.body.text || null; // Texto opcional
+    const file = req.file;
+
+    if (isNaN(conversationId)) {
+      return res.status(400).json({ error: 'conversationId inválido' });
+    }
+
+    if (!file) {
+      return res.status(400).json({ error: 'Archivo requerido' });
+    }
+
+    // Verificar que la conversación existe y pertenece al tenant actual
+    const conversation = await getConversationById(conversationId);
+    if (!conversation) {
+      // Limpiar archivo si la conversación no existe
+      if (file.path) {
+        fs.unlinkSync(file.path);
+      }
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    // Validar que la conversación pertenece al tenant actual
+    if (conversation.store_id !== req.tenant.id) {
+      // Limpiar archivo si no tiene acceso
+      if (file.path) {
+        fs.unlinkSync(file.path);
+      }
+      return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
+    }
+
+    // Validar que la conversación no esté eliminada
+    if (conversation.deleted_at) {
+      if (file.path) {
+        fs.unlinkSync(file.path);
+      }
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    // Cambiar conversación a modo HUMAN
+    const numericId = Number(conversationId);
+    await updateConversationMode(numericId, 'HUMAN');
+
+    // Crear URL pública del archivo
+    // En producción, esto debería subirse a un servicio de almacenamiento (S3, Cloudinary, etc.)
+    // Por ahora, usaremos una URL local que será servida por el servidor
+    const baseUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 3333}`;
+    const mediaUrl = `${baseUrl}/api/uploads/${file.filename}`;
+
+    // Enviar mensaje con media usando las credenciales del tenant
+    await sendMedia(conversation.phone_number, text, mediaUrl, file.mimetype, req.tenant);
+
+    // Guardar mensaje como outbound con media
+    const message = await saveMessage(
+      conversationId,
+      'outbound',
+      text || '[Archivo adjunto]',
+      undefined,
+      mediaUrl,
+      file.mimetype
+    );
+
+    // Marcar conversación como manejada por humano
+    await markConversationAsHandled(conversationId);
+
+    res.json({
+      success: true,
+      message: {
+        id: message.id,
+        conversation_id: message.conversation_id,
+        direction: message.direction,
+        body: message.body,
+        media_url: message.media_url,
+        media_type: message.media_type,
+        created_at: message.created_at
+      }
+    });
+  } catch (error: any) {
+    // Limpiar archivo en caso de error
+    if (req.file?.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {
+        console.error('Error eliminando archivo temporal:', e);
+      }
+    }
+    console.error('Error enviando respuesta con media:', error);
+    res.status(500).json({ error: 'Error al enviar respuesta con media', message: error.message });
+  }
+});
+
+/**
  * POST /api/conversations/:conversationId/reset-bot
  * 
  * Resetea una conversación a modo BOT
@@ -295,6 +447,37 @@ router.delete('/conversations/:conversationId', async (req: Request, res: Respon
     }
     res.status(500).json({ error: 'Error al eliminar conversación' });
   }
+});
+
+/**
+ * GET /api/uploads/:filename
+ * 
+ * Sirve archivos subidos temporalmente
+ */
+router.get('/uploads/:filename', (req: Request, res: Response) => {
+  const filename = req.params.filename;
+  const filePath = path.join(uploadsDir, filename);
+  
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Archivo no encontrado' });
+  }
+  
+  // Determinar content-type basado en extensión
+  const ext = path.extname(filename).toLowerCase();
+  const contentTypes: { [key: string]: string } = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.pdf': 'application/pdf'
+  };
+  
+  const contentType = contentTypes[ext] || 'application/octet-stream';
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  
+  res.sendFile(filePath);
 });
 
 /**

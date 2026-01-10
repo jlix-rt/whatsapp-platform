@@ -58,6 +58,11 @@ app.use((req, res, next) => {
     return next();
   }
   
+  // Endpoints de uploads no requieren tenant (Twilio necesita acceso público)
+  if (req.path.startsWith('/api/uploads/')) {
+    return next();
+  }
+  
   // Todas las demás rutas requieren tenant
   // El middleware usa x-forwarded-host (de nginx) o host como fallback
   return tenantMiddleware(req, res, next);

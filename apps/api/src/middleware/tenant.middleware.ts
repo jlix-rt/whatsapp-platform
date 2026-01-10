@@ -62,23 +62,30 @@ export const tenantMiddleware = async (
     // ========================================================================
     // PASO 3: Extraer el tenant_id del subdominio
     // ========================================================================
-    const tenantId = extractTenantIdFromHost(hostString);
+    let tenantId = extractTenantIdFromHost(hostString);
 
+    // En desarrollo (localhost), usar "crunchypaws" como tenant por defecto
     if (!tenantId) {
-      console.error(`❌ [TENANT ERROR] No se pudo extraer tenant_id del host: ${hostString}`);
-      console.error('   Host desglosado:', {
-        original: hostString,
-        withoutPort: hostString.split(':')[0],
-        parts: hostString.split(':')[0].split('.')
-      });
-      res.status(400).json({ 
-        error: 'Subdominio inválido. Formato esperado: {tenant_id}.inbox.tiendasgt.com',
-        debug: {
-          receivedHost: hostString,
-          source: xForwardedHost ? 'x-forwarded-host' : 'host'
-        }
-      });
-      return;
+      const hostWithoutPort = hostString.split(':')[0].toLowerCase();
+      if (hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1' || hostWithoutPort.startsWith('localhost')) {
+        tenantId = 'crunchypaws';
+        console.log('🏠 [TENANT] Ambiente local detectado, usando tenant por defecto: crunchypaws');
+      } else {
+        console.error(`❌ [TENANT ERROR] No se pudo extraer tenant_id del host: ${hostString}`);
+        console.error('   Host desglosado:', {
+          original: hostString,
+          withoutPort: hostString.split(':')[0],
+          parts: hostString.split(':')[0].split('.')
+        });
+        res.status(400).json({ 
+          error: 'Subdominio inválido. Formato esperado: {tenant_id}.inbox.tiendasgt.com',
+          debug: {
+            receivedHost: hostString,
+            source: xForwardedHost ? 'x-forwarded-host' : 'host'
+          }
+        });
+        return;
+      }
     }
 
     // ========================================================================

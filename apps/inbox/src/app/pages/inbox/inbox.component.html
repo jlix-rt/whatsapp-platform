@@ -9,7 +9,7 @@
 
   <div class="inbox-layout">
     <!-- Columna izquierda: Lista de conversaciones -->
-    <div class="conversations-panel" [class.hidden]="selectedConversation">
+    <div class="conversations-panel" [class.hidden]="!showConversationsPanel">
       <div class="conversations-header">
         <h2>Conversaciones</h2>
         <div *ngIf="refreshing" class="refresh-indicator" title="Actualizando...">
@@ -146,7 +146,32 @@
 
         <!-- Input para enviar mensaje -->
         <div class="message-input-container">
+          <!-- Preview del archivo seleccionado -->
+          <div *ngIf="selectedFile" class="file-preview">
+            <div class="file-preview-content">
+              <img *ngIf="filePreview" [src]="filePreview" alt="Preview" class="file-preview-image" />
+              <div *ngIf="!filePreview" class="file-preview-icon">📄</div>
+              <div class="file-preview-info">
+                <span class="file-preview-name">{{ selectedFile.name }}</span>
+                <span class="file-preview-size">{{ formatFileSize(selectedFile.size) }}</span>
+              </div>
+              <button type="button" class="file-preview-remove" (click)="clearFileSelection()" title="Eliminar archivo">×</button>
+            </div>
+          </div>
+          
           <form (ngSubmit)="sendMessage()" class="message-form">
+            <label for="file-input" class="file-input-label" title="Adjuntar archivo">
+              📎
+            </label>
+            <input
+              type="file"
+              id="file-input"
+              accept="image/*,application/pdf"
+              (change)="onFileSelected($event)"
+              class="file-input"
+              [disabled]="sending"
+              style="display: none;"
+            />
             <input
               type="text"
               [(ngModel)]="newMessage"
@@ -157,7 +182,7 @@
             />
             <button
               type="submit"
-              [disabled]="!newMessage.trim() || sending"
+              [disabled]="(!newMessage.trim() && !selectedFile) || sending"
               class="send-button"
             >
               {{ sending ? 'Enviando...' : 'Enviar' }}

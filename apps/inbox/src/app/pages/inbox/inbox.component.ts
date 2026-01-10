@@ -20,11 +20,16 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   selectedConversation: Conversation | null = null;
   messages: Message[] = [];
   newMessage: string = '';
+  selectedFile: File | null = null;
+  filePreview: string | null = null;
   loading: boolean = false;
   refreshing: boolean = false; // Para actualizaciones sin ocultar contenido
   sending: boolean = false;
   resettingBot: boolean = false;
   deleting: boolean = false;
+  showConversationsPanel: boolean = true; // Control de visibilidad del panel en móvil
+  isUserSelection: boolean = false; // Indica si la selección fue hecha por el usuario
+  userDeselected: boolean = false; // Indica si el usuario explícitamente deseleccionó una conversación
   
   // Modal de imagen
   showImageModal: boolean = false;
@@ -51,7 +56,20 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       next: (stores) => {
         this.stores = stores;
         if (stores.length > 0) {
-          this.selectedStoreId = stores[0].id;
+          // En localhost (desarrollo), seleccionar automáticamente "crunchypaws"
+          if (!environment.production) {
+            const crunchypawsStore = stores.find(store => store.id === 'crunchypaws' || store.name.toLowerCase().includes('crunchy'));
+            if (crunchypawsStore) {
+              this.selectedStoreId = crunchypawsStore.id;
+              console.log('🏪 Ambiente local: seleccionada automáticamente la tienda "Crunchy Paws"');
+            } else {
+              // Si no se encuentra, usar la primera disponible
+              this.selectedStoreId = stores[0].id;
+            }
+          } else {
+            // En producción, usar la primera tienda
+            this.selectedStoreId = stores[0].id;
+          }
           this.loadConversations(true); // Primera carga, mostrar loading
         }
       },
@@ -94,21 +112,45 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
         this.loading = false;
         this.refreshing = false;
 
-        // Si hay conversaciones y ninguna está seleccionada, seleccionar la primera
-        if (conversations.length > 0 && !this.selectedConversation) {
-          this.selectConversation(conversations[0]);
+        // CRÍTICO: Si el usuario deseleccionó explícitamente, mantener el estado deseleccionado
+        // y NO seleccionar ninguna conversación automáticamente
+        if (this.userDeselected) {
+          // Asegurarse de que no haya conversación seleccionada y que el panel esté visible
+          this.selectedConversation = null;
+          this.messages = [];
+          this.showConversationsPanel = true;
+          // NO continuar con el resto de la lógica para evitar selecciones automáticas
+          return;
         }
 
         // Si hay una conversación seleccionada, actualizar sus datos sin perder la selección
         if (selectedId) {
           const updated = conversations.find(c => c.id === selectedId);
           if (updated) {
-            // Actualizar la referencia manteniendo la misma instancia si es posible
+            // CRÍTICO: Preservar explícitamente showConversationsPanel durante actualizaciones automáticas
+            // El panel solo se oculta cuando el usuario hace clic explícitamente (selectConversation)
+            const previousPanelState = this.showConversationsPanel;
             this.selectedConversation = updated;
+            // Restaurar el estado del panel si por alguna razón cambió
+            this.showConversationsPanel = previousPanelState;
           } else {
             // Si la conversación fue eliminada, limpiar la selección
             this.selectedConversation = null;
             this.messages = [];
+            this.isUserSelection = false;
+            this.userDeselected = true; // Marcar como deseleccionado
+            this.showConversationsPanel = true;
+          }
+        } else if (conversations.length > 0 && !this.selectedConversation) {
+          // Si hay conversaciones y ninguna está seleccionada, seleccionar la primera
+          // Solo si el usuario no ha deseleccionado explícitamente (ya verificamos arriba)
+          this.selectedConversation = conversations[0];
+          this.loadMessages();
+          this.isUserSelection = false; // Selección automática
+          // No ocultar panel en móvil para selección automática
+          // El usuario puede seleccionar manualmente si lo desea
+          if (!this.pollingInterval) {
+            this.startPolling();
           }
         }
       },
@@ -124,6 +166,13 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.selectedConversation = conversation;
     this.messages = [];
     this.loadMessages();
+    this.isUserSelection = true; // Marcar como selección del usuario
+    this.userDeselected = false; // El usuario seleccionó, así que ya no está deseleccionado
+    
+    // Ocultar panel de conversaciones en móvil cuando el usuario selecciona explícitamente una conversación
+    if (window.innerWidth <= 768) {
+      this.showConversationsPanel = false;
+    }
 
     // Iniciar polling si no está activo
     if (!this.pollingInterval) {
@@ -134,6 +183,10 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   deselectConversation() {
     this.selectedConversation = null;
     this.messages = [];
+    this.isUserSelection = false;
+    this.userDeselected = true; // Marcar que el usuario explícitamente deseleccionó
+    // Mostrar panel de conversaciones en móvil cuando se deselecciona
+    this.showConversationsPanel = true;
   }
 
   ngAfterViewChecked() {
@@ -183,32 +236,113 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   sendMessage() {
-    if (!this.selectedConversation || !this.newMessage.trim() || this.sending) {
+    if (!this.selectedConversation || this.sending) {
+      return;
+    }
+
+    // Validar que hay algo para enviar (texto o archivo)
+    const hasText = this.newMessage.trim().length > 0;
+    const hasFile = this.selectedFile !== null;
+
+    if (!hasText && !hasFile) {
       return;
     }
 
     this.sending = true;
-    this.apiService.replyToConversation(
-      this.selectedConversation.id,
-      this.newMessage.trim()
-    ).subscribe({
-      next: () => {
-        this.newMessage = '';
-        this.sending = false;
-        // Recargar mensajes inmediatamente
-        this.loadMessages();
-        // Recargar conversaciones para actualizar last_message
-        this.loadConversations();
-        // Scroll al final después de enviar
-        setTimeout(() => {
-          this.shouldScrollToBottom = true;
-        }, 100);
-      },
-      error: (error) => {
-        console.error('Error enviando mensaje:', error);
-        this.sending = false;
+
+    // Si hay archivo, enviar con media
+    if (hasFile && this.selectedFile) {
+      this.apiService.replyWithMedia(
+        this.selectedConversation.id,
+        this.selectedFile,
+        this.newMessage.trim() || undefined
+      ).subscribe({
+        next: () => {
+          this.newMessage = '';
+          this.clearFileSelection();
+          this.sending = false;
+          // Recargar mensajes inmediatamente
+          this.loadMessages();
+          // Recargar conversaciones para actualizar last_message
+          this.loadConversations();
+          // Scroll al final después de enviar
+          setTimeout(() => {
+            this.shouldScrollToBottom = true;
+          }, 100);
+        },
+        error: (error) => {
+          console.error('Error enviando mensaje con archivo:', error);
+          this.sending = false;
+        }
+      });
+    } else {
+      // Enviar solo texto
+      this.apiService.replyToConversation(
+        this.selectedConversation.id,
+        this.newMessage.trim()
+      ).subscribe({
+        next: () => {
+          this.newMessage = '';
+          this.sending = false;
+          // Recargar mensajes inmediatamente
+          this.loadMessages();
+          // Recargar conversaciones para actualizar last_message
+          this.loadConversations();
+          // Scroll al final después de enviar
+          setTimeout(() => {
+            this.shouldScrollToBottom = true;
+          }, 100);
+        },
+        error: (error) => {
+          console.error('Error enviando mensaje:', error);
+          this.sending = false;
+        }
+      });
+    }
+  }
+
+  onFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      const file = input.files[0];
+      
+      // Validar tipo de archivo
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, GIF, WEBP) y PDFs.');
+        return;
       }
-    });
+
+      // Validar tamaño (10MB máximo)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        alert('El archivo es demasiado grande. El tamaño máximo es 10MB.');
+        return;
+      }
+
+      this.selectedFile = file;
+
+      // Crear preview si es imagen
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          this.filePreview = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        this.filePreview = null;
+      }
+    }
+  }
+
+  clearFileSelection() {
+    this.selectedFile = null;
+    this.filePreview = null;
+    // Limpiar el input de archivo
+    const fileInput = document.getElementById('file-input') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
   }
 
   startPolling() {
@@ -216,6 +350,8 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.pollingInterval = setInterval(() => {
       if (this.selectedStoreId) {
         // Usar refreshing en lugar de loading para no ocultar el contenido
+        // IMPORTANTE: No cambiar showConversationsPanel durante el polling
+        // El panel solo se oculta cuando el usuario hace clic explícitamente
         this.loadConversations(false);
         if (this.selectedConversation) {
           this.loadMessages();
@@ -255,6 +391,14 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   }
 
   isPending(conversation: Conversation): boolean {
@@ -316,9 +460,11 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.apiService.deleteConversation(this.selectedConversation.id).subscribe({
       next: (response) => {
         if (response.success) {
-          // Limpiar la conversación seleccionada
+          // Limpiar la conversación seleccionada y mostrar panel
           this.selectedConversation = null;
           this.messages = [];
+          this.isUserSelection = false;
+          this.showConversationsPanel = true;
           // Recargar conversaciones para actualizar la lista (la eliminada no aparecerá, sin ocultar contenido)
           this.loadConversations(false);
         }
