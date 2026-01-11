@@ -27,9 +27,9 @@ app.use(corsMiddleware);
 
 // IMPORTANTE: Los middlewares de body parsing deben ir ANTES de las rutas
 // Twilio envía datos como application/x-www-form-urlencoded
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // También soportar JSON para testing
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Middleware de logging para debug (después del body parsing)
 app.use((req, res, next) => {
