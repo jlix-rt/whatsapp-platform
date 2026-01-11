@@ -28,7 +28,7 @@
           (click)="selectConversation(conv)"
         >
           <div class="conversation-header">
-            <span class="phone-number">{{ conv.phone_number }}</span>
+            <span class="phone-number">{{ getConversationDisplayName(conv) }}</span>
             <span class="timestamp">{{ formatDate(conv.updated_at) }}</span>
           </div>
           <div class="conversation-preview">
@@ -59,7 +59,8 @@
             ←
           </button>
           <div class="conversation-info">
-            <h3>{{ selectedConversation.phone_number }}</h3>
+            <h3>{{ currentConversationContact?.name || selectedConversation.phone_number }}</h3>
+            <span class="conversation-phone-subtitle" *ngIf="currentConversationContact?.name">{{ selectedConversation.phone_number }}</span>
             <span class="conversation-status">
               <span class="mode-badge" [class.bot]="selectedConversation.mode === 'BOT'" [class.human]="selectedConversation.mode === 'HUMAN'">
                 {{ selectedConversation.mode }}
@@ -69,6 +70,20 @@
             </span>
           </div>
           <div class="conversation-actions">
+            <button 
+              (click)="openContactModal()"
+              class="contact-button"
+              title="Guardar como contacto"
+            >
+              👤 Contacto
+            </button>
+            <button 
+              (click)="openLocationsModal()"
+              class="locations-button"
+              title="Ver ubicaciones recibidas"
+            >
+              📍 Ubicaciones
+            </button>
             <button 
               *ngIf="selectedConversation.mode === 'HUMAN'"
               (click)="resetToBot()"
@@ -211,6 +226,135 @@
         class="image-modal-image"
         alt="Imagen ampliada"
       />
+    </div>
+  </div>
+</div>
+
+<!-- Modal de contacto -->
+<div *ngIf="showContactModal" class="modal-overlay" (click)="closeContactModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Guardar como Contacto</h2>
+      <button class="modal-close" (click)="closeContactModal()" title="Cerrar (ESC)">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="contact-phone">Teléfono:</label>
+        <input 
+          type="text" 
+          id="contact-phone" 
+          [value]="selectedConversation?.phone_number" 
+          disabled
+          class="form-input"
+        />
+      </div>
+      <div class="form-group">
+        <label for="contact-name">Nombre:</label>
+        <input 
+          type="text" 
+          id="contact-name" 
+          [(ngModel)]="contactName"
+          placeholder="Nombre del contacto"
+          class="form-input"
+        />
+      </div>
+      <div class="form-group">
+        <label for="contact-notes">Notas:</label>
+        <textarea 
+          id="contact-notes" 
+          [(ngModel)]="contactNotes"
+          placeholder="Notas adicionales sobre el contacto"
+          class="form-textarea"
+          rows="3"
+        ></textarea>
+      </div>
+      <div class="form-group" *ngIf="selectedLocation">
+        <label>Ubicación de entrega seleccionada:</label>
+        <div class="selected-location">
+          <span class="location-icon">📍</span>
+          <span class="location-text">{{ selectedLocation.body || 'Ubicación sin descripción' }}</span>
+          <a 
+            [href]="getGoogleMapsUrl(selectedLocation.latitude, selectedLocation.longitude)" 
+            target="_blank"
+            class="location-link"
+          >
+            Ver en mapa
+          </a>
+        </div>
+        <button 
+          type="button"
+          (click)="selectedLocation = null"
+          class="clear-location-button"
+        >
+          Quitar ubicación
+        </button>
+      </div>
+      <div class="form-group">
+        <button 
+          type="button"
+          (click)="openLocationsModal()"
+          class="select-location-button"
+        >
+          📍 Seleccionar ubicación de entrega
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" (click)="closeContactModal()" class="button-cancel">Cancelar</button>
+      <button type="button" (click)="saveContact()" class="button-save">{{ selectedContact ? 'Actualizar Contacto' : 'Guardar Contacto' }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de ubicaciones -->
+<div *ngIf="showLocationsModal" class="modal-overlay" (click)="closeLocationsModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Ubicaciones Recibidas</h2>
+      <button class="modal-close" (click)="closeLocationsModal()" title="Cerrar (ESC)">×</button>
+    </div>
+    <div class="modal-body">
+      <div *ngIf="locations.length === 0" class="empty-locations">
+        <p>No se han recibido ubicaciones en esta conversación.</p>
+      </div>
+      <div *ngIf="locations.length > 0" class="locations-list">
+        <div 
+          *ngFor="let location of locations" 
+          class="location-item"
+          [class.selected]="selectedLocation?.id === location.id"
+          (click)="selectLocation(location)"
+        >
+          <div class="location-header">
+            <span class="location-icon">📍</span>
+            <span class="location-date">{{ formatDate(location.created_at) }}</span>
+          </div>
+          <div class="location-body" *ngIf="location.body">
+            {{ location.body }}
+          </div>
+          <div class="location-coordinates">
+            Lat: {{ location.latitude | number:'1.6-6' }}, Lng: {{ location.longitude | number:'1.6-6' }}
+          </div>
+          <div class="location-actions">
+            <a 
+              [href]="getGoogleMapsUrl(location.latitude, location.longitude)" 
+              target="_blank"
+              class="location-link"
+              (click)="$event.stopPropagation()"
+            >
+              Ver en mapa
+            </a>
+            <button 
+              class="select-location-item-button"
+              (click)="selectLocation(location)"
+            >
+              Seleccionar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" (click)="closeLocationsModal()" class="button-cancel">Cerrar</button>
     </div>
   </div>
 </div>

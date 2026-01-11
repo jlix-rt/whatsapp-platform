@@ -36,7 +36,13 @@
 .back-button:hover{color:#25D366}
 .conversation-info{display:flex;flex-direction:column;gap:.5rem;flex:1}
 .conversation-info h3{margin:0;font-size:1.1rem;color:#333}
+.conversation-phone-subtitle{font-size:.875rem;color:#666;display:block;margin-top:.25rem}
 .conversation-actions{display:flex;gap:.5rem;align-items:center}
+.contact-button,.locations-button{padding:.5rem 1rem;color:white;border:none;border-radius:6px;font-size:.875rem;font-weight:500;cursor:pointer;transition:background-color .2s;white-space:nowrap}
+.contact-button{background-color:#2196f3}
+.contact-button:hover{background-color:#1976d2}
+.locations-button{background-color:#9c27b0}
+.locations-button:hover{background-color:#7b1fa2}
 .reset-bot-button,.delete-button{padding:.5rem 1rem;color:white;border:none;border-radius:6px;font-size:.875rem;font-weight:500;cursor:pointer;transition:background-color .2s;white-space:nowrap}
 .reset-bot-button{background-color:#ff9800}
 .reset-bot-button:hover:not(:disabled){background-color:#f57c00}
@@ -91,4 +97,45 @@
 .zoom-level{color:white;font-size:.875rem;min-width:50px;text-align:center;font-weight:500}
 .image-modal-image-container{max-width:90vw;max-height:90vh;overflow:auto;display:flex;align-items:center;justify-content:center;background-color:rgba(0,0,0,.3);border-radius:8px;padding:20px}
 .image-modal-image{max-width:100%;max-height:100%;object-fit:contain;transition:transform .2s;transform-origin:center center}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem}
+.modal-content{background-color:white;border-radius:12px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.3);display:flex;flex-direction:column}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:1.5rem;border-bottom:1px solid #e0e0e0}
+.modal-header h2{margin:0;font-size:1.5rem;font-weight:500;color:#333}
+.modal-close{background:none;border:none;font-size:2rem;color:#999;cursor:pointer;padding:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:all .2s;line-height:1}
+.modal-close:hover{background-color:#f0f0f0;color:#333}
+.modal-body{padding:1.5rem;flex:1;overflow-y:auto}
+.form-group{margin-bottom:1.5rem}
+.form-group label{display:block;margin-bottom:.5rem;font-weight:500;color:#333}
+.form-input,.form-textarea{width:100%;padding:.75rem;border:1px solid #e0e0e0;border-radius:6px;font-size:1rem;font-family:inherit}
+.form-input:focus,.form-textarea:focus{outline:none;border-color:#25D366}
+.form-textarea{resize:vertical;min-height:80px}
+.form-input:disabled{background-color:#f5f5f5;color:#999;cursor:not-allowed}
+.modal-footer{display:flex;justify-content:flex-end;gap:1rem;padding:1.5rem;border-top:1px solid #e0e0e0}
+.button-cancel,.button-save{padding:.75rem 1.5rem;border:none;border-radius:6px;font-size:1rem;font-weight:500;cursor:pointer;transition:background-color .2s}
+.button-cancel{background-color:#f5f5f5;color:#333}
+.button-cancel:hover{background-color:#e0e0e0}
+.button-save{background-color:#25D366;color:white}
+.button-save:hover{background-color:#20ba5a}
+.selected-location{padding:1rem;background-color:#f0f7ff;border:1px solid #2196f3;border-radius:8px;margin-bottom:.5rem;display:flex;align-items:center;gap:.75rem}
+.selected-location .location-icon{font-size:1.5rem}
+.selected-location .location-text{flex:1;font-weight:500;color:#333}
+.location-link{color:#2196f3;text-decoration:none;font-size:.875rem}
+.location-link:hover{text-decoration:underline}
+.clear-location-button,.select-location-button{padding:.5rem 1rem;background-color:#f5f5f5;color:#333;border:1px solid #e0e0e0;border-radius:6px;font-size:.875rem;cursor:pointer;transition:background-color .2s;width:100%}
+.clear-location-button:hover,.select-location-button:hover{background-color:#e0e0e0}
+.select-location-button{background-color:#9c27b0;color:white;border-color:#9c27b0}
+.select-location-button:hover{background-color:#7b1fa2}
+.empty-locations{padding:3rem;text-align:center;color:#999}
+.locations-list{display:flex;flex-direction:column;gap:1rem}
+.location-item{padding:1rem;border:2px solid #e0e0e0;border-radius:8px;cursor:pointer;transition:all .2s}
+.location-item:hover{border-color:#9c27b0;background-color:#faf5ff}
+.location-item.selected{border-color:#9c27b0;background-color:#f0e6ff}
+.location-header{display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem}
+.location-header .location-icon{font-size:1.5rem}
+.location-date{font-size:.875rem;color:#666}
+.location-body{margin-bottom:.5rem;color:#333;font-weight:500}
+.location-coordinates{font-size:.85rem;color:#666;font-family:monospace;margin-bottom:.75rem}
+.location-actions{display:flex;gap:.5rem;align-items:center}
+.select-location-item-button{padding:.5rem 1rem;background-color:#9c27b0;color:white;border:none;border-radius:6px;font-size:.875rem;cursor:pointer;transition:background-color .2s}
+.select-location-item-button:hover{background-color:#7b1fa2}
 @media(max-width:768px){.inbox-layout{position:relative}.conversations-panel{position:absolute;top:0;left:0;width:100%;height:100%;z-index:100;transform:translateX(0);transition:transform .3s ease-in-out}.conversations-panel.hidden{transform:translateX(-100%)}.messages-panel{padding:.5rem;width:100%}.messages-panel.full-width{width:100%;padding:0;position:absolute;top:0;left:0;height:100%;z-index:101}.back-button{display:block}.conversation-actions{flex-wrap:wrap}.reset-bot-button,.delete-button{font-size:.75rem;padding:.375rem .75rem}.messages-container{border-radius:0;box-shadow:none;height:100%;display:flex;flex-direction:column}.messages-header{padding:.75rem}.conversation-info h3{font-size:1rem}.message{max-width:85%}.message-input-container{padding:.75rem}.message-form{gap:.375rem}.message-input{padding:.5rem;font-size:.9rem}.send-button{padding:.5rem 1rem;font-size:.875rem}.no-selection{display:none}}

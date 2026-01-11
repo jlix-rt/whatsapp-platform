@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { InboxApiService, Store, Conversation, Message } from '../../services/inbox-api.service';
+import { InboxApiService, Store, Conversation, Message, Contact, Location } from '../../services/inbox-api.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
@@ -36,6 +36,17 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   modalImageUrl: string = '';
   imageZoom: number = 100;
   
+  // Contactos y ubicaciones
+  contacts: Contact[] = [];
+  selectedContact: Contact | null = null;
+  currentConversationContact: Contact | null = null; // Contacto asociado a la conversación actual
+  showContactModal: boolean = false;
+  contactName: string = '';
+  contactNotes: string = '';
+  showLocationsModal: boolean = false;
+  locations: Location[] = [];
+  selectedLocation: Location | null = null;
+  
   private pollingInterval: any;
   private shouldScrollToBottom: boolean = false;
 
@@ -43,6 +54,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   ngOnInit() {
     this.loadStores();
+    this.loadContacts();
   }
 
   ngOnDestroy() {
@@ -169,6 +181,9 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.isUserSelection = true; // Marcar como selección del usuario
     this.userDeselected = false; // El usuario seleccionó, así que ya no está deseleccionado
     
+    // Cargar contacto asociado a esta conversación
+    this.loadConversationContact();
+    
     // Ocultar panel de conversaciones en móvil cuando el usuario selecciona explícitamente una conversación
     if (window.innerWidth <= 768) {
       this.showConversationsPanel = false;
@@ -183,6 +198,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   deselectConversation() {
     this.selectedConversation = null;
     this.messages = [];
+    this.currentConversationContact = null;
     this.isUserSelection = false;
     this.userDeselected = true; // Marcar que el usuario explícitamente deseleccionó
     // Mostrar panel de conversaciones en móvil cuando se deselecciona
@@ -551,6 +567,162 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     if (event.key === 'Escape' && this.showImageModal) {
       this.closeImageModal();
     }
+    if (event.key === 'Escape' && this.showContactModal) {
+      this.closeContactModal();
+    }
+    if (event.key === 'Escape' && this.showLocationsModal) {
+      this.closeLocationsModal();
+    }
+  }
+
+  // ============================================================================
+  // CONTACTOS
+  // ============================================================================
+
+  loadContacts() {
+    this.apiService.getContacts().subscribe({
+      next: (contacts) => {
+        this.contacts = contacts;
+        // Si hay una conversación seleccionada, actualizar su contacto
+        if (this.selectedConversation) {
+          this.loadConversationContact();
+        }
+      },
+      error: (error) => {
+        console.error('Error cargando contactos:', error);
+      }
+    });
+  }
+
+  loadConversationContact() {
+    if (!this.selectedConversation) {
+      this.currentConversationContact = null;
+      return;
+    }
+
+    // Buscar contacto asociado a esta conversación
+    const contact = this.contacts.find(c => c.phone_number === this.selectedConversation?.phone_number);
+    this.currentConversationContact = contact || null;
+  }
+
+  getConversationDisplayName(conversation: Conversation): string {
+    const contact = this.contacts.find(c => c.phone_number === conversation.phone_number);
+    return contact?.name || conversation.phone_number;
+  }
+
+  openContactModal() {
+    if (!this.selectedConversation) return;
+    
+    // Usar el contacto ya cargado o buscarlo
+    const existingContact = this.currentConversationContact || 
+      this.contacts.find(c => c.phone_number === this.selectedConversation?.phone_number);
+    
+    if (existingContact) {
+      this.selectedContact = existingContact;
+      this.contactName = existingContact.name || '';
+      this.contactNotes = existingContact.notes || '';
+      // Si tiene ubicación de entrega, cargarla también
+      if (existingContact.delivery_latitude && existingContact.delivery_longitude) {
+        // Buscar la ubicación en los mensajes recibidos
+        this.apiService.getConversationLocations(this.selectedConversation.id).subscribe({
+          next: (locations) => {
+            const matchingLocation = locations.find(l => 
+              Math.abs(l.latitude - existingContact.delivery_latitude!) < 0.0001 &&
+              Math.abs(l.longitude - existingContact.delivery_longitude!) < 0.0001
+            );
+            if (matchingLocation) {
+              this.selectedLocation = matchingLocation;
+            }
+          },
+          error: () => {
+            // Ignorar error, no es crítico
+          }
+        });
+      }
+    } else {
+      this.selectedContact = null;
+      this.contactName = '';
+      this.contactNotes = '';
+      this.selectedLocation = null;
+    }
+    this.showContactModal = true;
+  }
+
+  closeContactModal() {
+    this.showContactModal = false;
+    this.selectedContact = null;
+    this.contactName = '';
+    this.contactNotes = '';
+    this.selectedLocation = null;
+  }
+
+  saveContact() {
+    if (!this.selectedConversation) return;
+
+    const contactData: Partial<Contact> = {
+      name: this.contactName.trim() || null,
+      notes: this.contactNotes.trim() || null,
+      delivery_latitude: this.selectedLocation?.latitude || null,
+      delivery_longitude: this.selectedLocation?.longitude || null,
+      delivery_address: this.selectedLocation?.body || null
+    };
+
+    this.apiService.saveConversationAsContact(this.selectedConversation.id, contactData).subscribe({
+      next: (response) => {
+        const isUpdate = !!this.selectedContact;
+        alert(isUpdate ? 'Contacto actualizado exitosamente' : 'Contacto guardado exitosamente');
+        this.closeContactModal();
+        this.loadContacts();
+        // Recargar conversaciones para actualizar los nombres mostrados
+        this.loadConversations(false);
+      },
+      error: (error) => {
+        console.error('Error guardando contacto:', error);
+        alert('Error al guardar contacto. Por favor intenta de nuevo.');
+      }
+    });
+  }
+
+  // ============================================================================
+  // UBICACIONES
+  // ============================================================================
+
+  openLocationsModal() {
+    if (!this.selectedConversation) return;
+
+    this.apiService.getConversationLocations(this.selectedConversation.id).subscribe({
+      next: (locations) => {
+        this.locations = locations;
+        this.showLocationsModal = true;
+      },
+      error: (error) => {
+        console.error('Error cargando ubicaciones:', error);
+        alert('Error al cargar ubicaciones');
+      }
+    });
+  }
+
+  closeLocationsModal() {
+    this.showLocationsModal = false;
+    this.selectedLocation = null;
+  }
+
+  selectLocation(location: Location) {
+    this.selectedLocation = location;
+    this.closeLocationsModal();
+    // Si el modal de contacto está abierto, actualizar la ubicación
+    if (this.showContactModal) {
+      // La ubicación ya está seleccionada, se usará al guardar
+    }
+  }
+
+  getGoogleMapsUrl(latitude: number, longitude: number): string {
+    return `https://www.google.com/maps?q=${latitude},${longitude}`;
+  }
+
+  hasLocation(message: Message): boolean {
+    return message.latitude !== null && message.latitude !== undefined &&
+           message.longitude !== null && message.longitude !== undefined;
   }
 }
 

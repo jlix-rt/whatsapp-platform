@@ -70,10 +70,18 @@ export { pool };
 export const initSchema = async () => {
   try {
     const fs = require('fs');
-    const schemaPath = path.join(__dirname, 'schema.sql');
+    // Buscar schema.sql en dist/db primero, luego en src/db (para desarrollo)
+    let schemaPath = path.join(__dirname, 'schema.sql');
+    if (!fs.existsSync(schemaPath)) {
+      // Si no existe en dist, buscar en src (modo desarrollo con ts-node)
+      const srcPath = path.join(__dirname, '..', '..', 'src', 'db', 'schema.sql');
+      if (fs.existsSync(srcPath)) {
+        schemaPath = srcPath;
+      }
+    }
     const schema = fs.readFileSync(schemaPath, 'utf8');
     await pool.query(schema);
-    console.log('Esquema de base de datos inicializado');
+    console.log('✅ Esquema de base de datos inicializado');
   } catch (error: any) {
     // No fallar la aplicación si hay error de conexión a la BD
     // Solo loguear el error con más detalles

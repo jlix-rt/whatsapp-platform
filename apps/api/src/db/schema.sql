@@ -184,8 +184,33 @@ BEGIN
   END IF;
 END $$;
 
+-- Tabla de contactos
+CREATE TABLE IF NOT EXISTS contacts (
+  id SERIAL PRIMARY KEY,
+  store_id INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  phone_number VARCHAR(50) NOT NULL,
+  name TEXT,
+  delivery_address TEXT,
+  delivery_latitude DECIMAL(10, 8),
+  delivery_longitude DECIMAL(11, 8),
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(store_id, phone_number)
+);
+
+-- Migración: crear tabla de contactos si no existe
+DO $$ 
+BEGIN
+  -- La tabla ya se crea arriba, solo agregamos índices si no existen
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_contacts_store_phone') THEN
+    CREATE INDEX idx_contacts_store_phone ON contacts(store_id, phone_number);
+  END IF;
+END $$;
+
 -- Índices para mejorar rendimiento
 CREATE INDEX IF NOT EXISTS idx_conversations_store_phone ON conversations(store_id, phone_number);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_location ON messages(latitude, longitude) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 

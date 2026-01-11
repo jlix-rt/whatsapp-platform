@@ -4,6 +4,7 @@ import '../types/express';
 import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, updateConversationMode, deleteConversation, getMessageById } from '../services/message.service';
 import { getStoreById } from '../services/message.service';
 import { sendText, sendMedia } from '../services/twilio.service';
+import { getContacts, getContactById, getContactByPhone, upsertContact, updateContact, deleteContact, getMessageLocations } from '../services/contact.service';
 import multer from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -681,6 +682,259 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
   } catch (error) {
     console.error('Error en proxy de media:', error);
     res.status(500).json({ error: 'Error al obtener media' });
+  }
+});
+
+/**
+ * GET /api/contacts
+ * 
+ * Obtener todos los contactos del tenant actual
+ * 
+ * MULTITENANT: Solo retorna contactos del tenant actual
+ */
+router.get('/contacts', async (req: Request, res: Response) => {
+  try {
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const contacts = await getContacts(req.tenant.id);
+    res.json(contacts);
+  } catch (error: any) {
+    console.error('Error obteniendo contactos:', error);
+    res.status(500).json({ error: 'Error al obtener contactos' });
+  }
+});
+
+/**
+ * GET /api/contacts/:contactId
+ * 
+ * Obtener un contacto específico
+ * 
+ * MULTITENANT: Valida que el contacto pertenece al tenant actual
+ */
+router.get('/contacts/:contactId', async (req: Request, res: Response) => {
+  try {
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const contactId = parseInt(req.params.contactId);
+    if (isNaN(contactId)) {
+      return res.status(400).json({ error: 'contactId inválido' });
+    }
+
+    const contact = await getContactById(contactId);
+    if (!contact) {
+      return res.status(404).json({ error: 'Contacto no encontrado' });
+    }
+
+    if (contact.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a este contacto' });
+    }
+
+    res.json(contact);
+  } catch (error: any) {
+    console.error('Error obteniendo contacto:', error);
+    res.status(500).json({ error: 'Error al obtener contacto' });
+  }
+});
+
+/**
+ * POST /api/contacts
+ * 
+ * Crear o actualizar un contacto
+ * 
+ * MULTITENANT: Crea el contacto para el tenant actual
+ */
+router.post('/contacts', async (req: Request, res: Response) => {
+  try {
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const { phone_number, name, delivery_address, delivery_latitude, delivery_longitude, notes } = req.body;
+
+    if (!phone_number) {
+      return res.status(400).json({ error: 'phone_number es requerido' });
+    }
+
+    const contact = await upsertContact(
+      req.tenant.id,
+      phone_number,
+      name || null,
+      delivery_address || null,
+      delivery_latitude || null,
+      delivery_longitude || null,
+      notes || null
+    );
+
+    res.json(contact);
+  } catch (error: any) {
+    console.error('Error creando/actualizando contacto:', error);
+    res.status(500).json({ error: 'Error al crear/actualizar contacto', message: error.message });
+  }
+});
+
+/**
+ * PUT /api/contacts/:contactId
+ * 
+ * Actualizar un contacto existente
+ * 
+ * MULTITENANT: Valida que el contacto pertenece al tenant actual
+ */
+router.put('/contacts/:contactId', async (req: Request, res: Response) => {
+  try {
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const contactId = parseInt(req.params.contactId);
+    if (isNaN(contactId)) {
+      return res.status(400).json({ error: 'contactId inválido' });
+    }
+
+    const contact = await getContactById(contactId);
+    if (!contact) {
+      return res.status(404).json({ error: 'Contacto no encontrado' });
+    }
+
+    if (contact.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a este contacto' });
+    }
+
+    const { name, delivery_address, delivery_latitude, delivery_longitude, notes } = req.body;
+
+    const updatedContact = await updateContact(
+      contactId,
+      name !== undefined ? name : null,
+      delivery_address !== undefined ? delivery_address : null,
+      delivery_latitude !== undefined ? delivery_latitude : null,
+      delivery_longitude !== undefined ? delivery_longitude : null,
+      notes !== undefined ? notes : null
+    );
+
+    res.json(updatedContact);
+  } catch (error: any) {
+    console.error('Error actualizando contacto:', error);
+    res.status(500).json({ error: 'Error al actualizar contacto', message: error.message });
+  }
+});
+
+/**
+ * DELETE /api/contacts/:contactId
+ * 
+ * Eliminar un contacto
+ * 
+ * MULTITENANT: Valida que el contacto pertenece al tenant actual
+ */
+router.delete('/contacts/:contactId', async (req: Request, res: Response) => {
+  try {
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const contactId = parseInt(req.params.contactId);
+    if (isNaN(contactId)) {
+      return res.status(400).json({ error: 'contactId inválido' });
+    }
+
+    const contact = await getContactById(contactId);
+    if (!contact) {
+      return res.status(404).json({ error: 'Contacto no encontrado' });
+    }
+
+    if (contact.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a este contacto' });
+    }
+
+    await deleteContact(contactId);
+
+    res.json({ success: true, message: 'Contacto eliminado exitosamente' });
+  } catch (error: any) {
+    console.error('Error eliminando contacto:', error);
+    res.status(500).json({ error: 'Error al eliminar contacto', message: error.message });
+  }
+});
+
+/**
+ * GET /api/conversations/:conversationId/locations
+ * 
+ * Obtener ubicaciones recibidas en mensajes de una conversación
+ * 
+ * MULTITENANT: Valida que la conversación pertenece al tenant actual
+ */
+router.get('/conversations/:conversationId/locations', async (req: Request, res: Response) => {
+  try {
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const conversationId = parseInt(req.params.conversationId);
+    if (isNaN(conversationId)) {
+      return res.status(400).json({ error: 'conversationId inválido' });
+    }
+
+    const conversation = await getConversationById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    if (conversation.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
+    }
+
+    const locations = await getMessageLocations(conversationId);
+    res.json(locations);
+  } catch (error: any) {
+    console.error('Error obteniendo ubicaciones:', error);
+    res.status(500).json({ error: 'Error al obtener ubicaciones' });
+  }
+});
+
+/**
+ * POST /api/conversations/:conversationId/save-as-contact
+ * 
+ * Guardar una conversación como contacto
+ * 
+ * MULTITENANT: Valida que la conversación pertenece al tenant actual
+ */
+router.post('/conversations/:conversationId/save-as-contact', async (req: Request, res: Response) => {
+  try {
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Tenant no identificado' });
+    }
+
+    const conversationId = parseInt(req.params.conversationId);
+    if (isNaN(conversationId)) {
+      return res.status(400).json({ error: 'conversationId inválido' });
+    }
+
+    const conversation = await getConversationById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    if (conversation.store_id !== req.tenant.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
+    }
+
+    const { name, delivery_address, delivery_latitude, delivery_longitude, notes } = req.body;
+
+    const contact = await upsertContact(
+      req.tenant.id,
+      conversation.phone_number,
+      name || null,
+      delivery_address || null,
+      delivery_latitude || null,
+      delivery_longitude || null,
+      notes || null
+    );
+
+    res.json({ success: true, contact });
+  } catch (error: any) {
+    console.error('Error guardando como contacto:', error);
+    res.status(500).json({ error: 'Error al guardar como contacto', message: error.message });
   }
 });
 

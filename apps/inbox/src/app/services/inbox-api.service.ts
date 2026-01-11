@@ -39,6 +39,27 @@ export interface ReplyResponse {
   message: Message;
 }
 
+export interface Contact {
+  id: number;
+  store_id: number;
+  phone_number: string;
+  name: string | null;
+  delivery_address: string | null;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Location {
+  id: number;
+  latitude: number;
+  longitude: number;
+  body: string;
+  created_at: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -82,6 +103,39 @@ export class InboxApiService {
   deleteConversation(conversationId: number): Observable<{ success: boolean; message: string }> {
     return this.http.delete<{ success: boolean; message: string }>(
       `${this.apiUrl}/conversations/${conversationId}`
+    );
+  }
+
+  getContacts(): Observable<Contact[]> {
+    return this.http.get<Contact[]>(`${this.apiUrl}/contacts`);
+  }
+
+  getContact(contactId: number): Observable<Contact> {
+    return this.http.get<Contact>(`${this.apiUrl}/contacts/${contactId}`);
+  }
+
+  createContact(contact: Partial<Contact>): Observable<Contact> {
+    return this.http.post<Contact>(`${this.apiUrl}/contacts`, contact);
+  }
+
+  updateContact(contactId: number, contact: Partial<Contact>): Observable<Contact> {
+    return this.http.put<Contact>(`${this.apiUrl}/contacts/${contactId}`, contact);
+  }
+
+  deleteContact(contactId: number): Observable<{ success: boolean; message: string }> {
+    return this.http.delete<{ success: boolean; message: string }>(
+      `${this.apiUrl}/contacts/${contactId}`
+    );
+  }
+
+  getConversationLocations(conversationId: number): Observable<Location[]> {
+    return this.http.get<Location[]>(`${this.apiUrl}/conversations/${conversationId}/locations`);
+  }
+
+  saveConversationAsContact(conversationId: number, contact: Partial<Contact>): Observable<{ success: boolean; contact: Contact }> {
+    return this.http.post<{ success: boolean; contact: Contact }>(
+      `${this.apiUrl}/conversations/${conversationId}/save-as-contact`,
+      contact
     );
   }
 }
