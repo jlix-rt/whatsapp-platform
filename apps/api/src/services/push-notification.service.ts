@@ -97,6 +97,13 @@ export async function sendPushNotification(
 ): Promise<void> {
   const subscriptions = await getAllPushSubscriptions();
 
+  if (subscriptions.length === 0) {
+    console.warn('⚠️  No hay suscripciones activas para enviar notificaciones');
+    return;
+  }
+
+  console.log(`📤 Enviando notificación push a ${subscriptions.length} suscripción(es)`);
+
   const payload = JSON.stringify({
     title,
     body,
@@ -105,20 +112,32 @@ export async function sendPushNotification(
     requireInteraction: true
   });
 
-  const promises = subscriptions.map(async (subscription) => {
-    try {
-      await webpush.sendNotification(subscription, payload);
-    } catch (error: any) {
-      // Si la suscripción es inválida (410 Gone), eliminarla
-      if (error.statusCode === 410) {
-        await deletePushSubscription(subscription.endpoint);
-      } else {
-        console.error(`Error enviando notificación push a ${subscription.endpoint}:`, error);
+  const results = await Promise.allSettled(
+    subscriptions.map(async (subscription) => {
+      try {
+        await webpush.sendNotification(subscription, payload);
+        console.log(`✅ Notificación enviada exitosamente a: ${subscription.endpoint.substring(0, 50)}...`);
+        return { success: true, endpoint: subscription.endpoint };
+      } catch (error: any) {
+        // Si la suscripción es inválida (410 Gone), eliminarla
+        if (error.statusCode === 410) {
+          console.log(`⚠️  Suscripción expirada (410 Gone), eliminando: ${subscription.endpoint.substring(0, 50)}...`);
+          await deletePushSubscription(subscription.endpoint);
+        } else {
+          console.error(`❌ Error enviando notificación push a ${subscription.endpoint.substring(0, 50)}...:`, error.message);
+          if (error.statusCode) {
+            console.error(`   Status Code: ${error.statusCode}`);
+          }
+        }
+        return { success: false, endpoint: subscription.endpoint, error: error.message };
       }
-    }
-  });
+    })
+  );
 
-  await Promise.allSettled(promises);
+  const successful = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+  const failed = results.length - successful;
+
+  console.log(`📊 Resumen: ${successful} exitosas, ${failed} fallidas de ${subscriptions.length} total`);
 }
 
 /**
