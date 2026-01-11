@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, HostListener, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InboxApiService, Store, Conversation, Message, Contact, Location } from '../../services/inbox-api.service';
@@ -9,7 +9,8 @@ import { environment } from '../../../environments/environment';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './inbox.component.html',
-  styleUrls: ['./inbox.component.scss']
+  styleUrls: ['./inbox.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   @ViewChild('messagesList') messagesListRef!: ElementRef;
@@ -27,6 +28,13 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   sending: boolean = false;
   resettingBot: boolean = false;
   deleting: boolean = false;
+  
+  // Paginación de mensajes
+  messagesLimit: number = environment.messagesLimit || 50; // Número de mensajes a cargar por vez (configurable en environment)
+  hasMoreMessages: boolean = false;
+  oldestMessageId: number | null = null;
+  loadingMoreMessages: boolean = false;
+  totalMessages: number = 0;
   showConversationsPanel: boolean = true; // Control de visibilidad del panel en móvil
   isUserSelection: boolean = false; // Indica si la selección fue hecha por el usuario
   userDeselected: boolean = false; // Indica si el usuario explícitamente deseleccionó una conversación
@@ -49,8 +57,20 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   
   private pollingInterval: any;
   private shouldScrollToBottom: boolean = false;
+  private isUserAtBottom: boolean = true; // Indica si el usuario está viendo los últimos mensajes
+  private isPrependingMessages: boolean = false; // Flag para indicar que se están agregando mensajes al inicio
+  private scrollRestorationPending: boolean = false; // Flag para restaurar scroll después del render
+  private previousScrollHeight: number = 0; // Altura del scroll antes de agregar mensajes
+  private previousScrollTop: number = 0; // Posición del scroll antes de agregar mensajes
+  private referenceMessageId: number | null = null; // ID del mensaje que el usuario estaba viendo
+  private isRestoringScroll: boolean = false; // Flag para evitar interferencias durante la restauración
+  private lastLoadMoreTime: number = 0; // Timestamp de la última carga para evitar múltiples cargas rápidas
+  private scrollRestorationTimeout: any = null; // Timeout para la restauración del scroll
 
-  constructor(private apiService: InboxApiService) {}
+  constructor(
+    private apiService: InboxApiService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit() {
     this.loadStores();
@@ -73,7 +93,6 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
             const crunchypawsStore = stores.find(store => store.id === 'crunchypaws' || store.name.toLowerCase().includes('crunchy'));
             if (crunchypawsStore) {
               this.selectedStoreId = crunchypawsStore.id;
-              console.log('🏪 Ambiente local: seleccionada automáticamente la tienda "Crunchy Paws"');
             } else {
               // Si no se encuentra, usar la primera disponible
               this.selectedStoreId = stores[0].id;
@@ -106,15 +125,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       next: (conversations) => {
         // Debug: verificar que last_message_direction esté presente
         conversations.forEach(conv => {
-          if (conv.phone_number === 'whatsapp:+50277777777') {
-            console.log('🔍 Debug conversación +50277777777:', {
-              id: conv.id,
-              last_message: conv.last_message,
-              last_message_direction: conv.last_message_direction,
-              human_handled: conv.human_handled,
-              isPending: this.isPending(conv)
-            });
-          }
+          // Debug removido
         });
         
         // Preservar la conversación seleccionada antes de actualizar
@@ -206,49 +217,453 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   ngAfterViewChecked() {
-    if (this.shouldScrollToBottom) {
+    // Evitar ejecutar si ya estamos restaurando el scroll
+    if (this.isRestoringScroll) {
+      return;
+    }
+
+    // Restaurar scroll después de agregar mensajes antiguos
+    if (this.scrollRestorationPending && this.isPrependingMessages) {
+      // Limpiar timeout anterior si existe
+      if (this.scrollRestorationTimeout) {
+        clearTimeout(this.scrollRestorationTimeout);
+      }
+      
+      // Usar múltiples requestAnimationFrame para asegurar que el DOM esté completamente renderizado
+      // Esto es crítico porque Angular puede necesitar múltiples ciclos para renderizar todos los elementos
+      this.isRestoringScroll = true;
+      
+      // Doble requestAnimationFrame para asegurar que el DOM esté completamente actualizado
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          this.scrollRestorationTimeout = setTimeout(() => {
+            this.restoreScrollPosition();
+            // Limpiar flags después de restaurar
+            this.scrollRestorationPending = false;
+            this.isPrependingMessages = false;
+            this.scrollRestorationTimeout = null;
+            // El flag isRestoringScroll se limpia dentro de restoreScrollPosition
+          }, 10); // Pequeño delay para asegurar que el DOM esté completamente actualizado
+        });
+      });
+      return;
+    }
+
+    // Scroll al final solo si está habilitado y no estamos agregando mensajes antiguos
+    // Y no estamos restaurando el scroll
+    // IMPORTANTE: Verificar también scrollRestorationPending para evitar interferencias
+    if (this.shouldScrollToBottom && 
+        !this.isPrependingMessages && 
+        !this.isRestoringScroll &&
+        !this.scrollRestorationPending) {
       this.scrollToBottom();
       this.shouldScrollToBottom = false;
     }
   }
 
+  /**
+   * Restaura la posición del scroll después de agregar mensajes antiguos al inicio
+   * Usa la diferencia de scrollHeight para mantener al usuario viendo el mismo mensaje
+   */
+  private restoreScrollPosition(): void {
+    const element = this.messagesListRef?.nativeElement;
+    if (!element || this.previousScrollHeight === 0 || this.previousScrollTop === 0) {
+      this.isRestoringScroll = false;
+      return;
+    }
+
+    // Calcular la nueva posición del scroll
+    const newScrollHeight = element.scrollHeight;
+    const scrollDifference = newScrollHeight - this.previousScrollHeight;
+    
+    // Solo restaurar si hay una diferencia significativa (más de 1px para evitar micro-ajustes)
+    if (Math.abs(scrollDifference) > 1) {
+      // CRÍTICO: Cuando se agregan mensajes al INICIO, el scrollTop debe aumentar
+      // en la misma cantidad que aumentó el scrollHeight
+      // Esto mantiene al usuario viendo el mismo mensaje visualmente
+      const newScrollTop = this.previousScrollTop + scrollDifference;
+      
+      // Aplicar el nuevo scrollTop
+      element.scrollTop = newScrollTop;
+      
+      // Verificar que el scroll se aplicó correctamente después del render
+      // Usar múltiples frames para asegurar que el DOM esté completamente actualizado
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const currentScrollTop = element.scrollTop;
+          const expectedScrollTop = this.previousScrollTop + scrollDifference;
+          const difference = Math.abs(currentScrollTop - expectedScrollTop);
+          
+          // Si la diferencia es significativa (> 10px), reintentar
+          if (difference > 10) {
+            element.scrollTop = expectedScrollTop;
+            
+            // Última verificación después de otro frame
+            requestAnimationFrame(() => {
+              const finalScrollTop = element.scrollTop;
+              const finalDifference = Math.abs(finalScrollTop - expectedScrollTop);
+              if (finalDifference > 10) {
+                console.warn('⚠️ [SCROLL] No se pudo restaurar completamente:', {
+                  final: finalScrollTop,
+                  expected: expectedScrollTop,
+                  difference: finalDifference
+                });
+              }
+              this.isRestoringScroll = false;
+            });
+          } else {
+            this.isRestoringScroll = false;
+          }
+        });
+      });
+    } else {
+      this.isRestoringScroll = false;
+    }
+  }
+
+  /**
+   * Guarda el estado actual del scroll antes de modificar los mensajes
+   */
+  private saveScrollState(): void {
+    const element = this.messagesListRef?.nativeElement;
+    if (!element || this.messages.length === 0) {
+      this.previousScrollHeight = 0;
+      this.previousScrollTop = 0;
+      return;
+    }
+
+    // Guardar el estado ANTES de cualquier cambio
+    this.previousScrollHeight = element.scrollHeight;
+    this.previousScrollTop = element.scrollTop;
+    
+    // Guardar el ID del primer mensaje visible como referencia
+    const firstVisibleMessage = this.getFirstVisibleMessage();
+    this.referenceMessageId = firstVisibleMessage?.id || null;
+  }
+
+  /**
+   * Obtiene el primer mensaje visible en el viewport
+   */
+  private getFirstVisibleMessage(): Message | null {
+    const element = this.messagesListRef?.nativeElement;
+    if (!element || this.messages.length === 0) return null;
+
+    const scrollTop = element.scrollTop;
+    const containerTop = element.getBoundingClientRect().top;
+    
+    // Buscar el primer mensaje que esté visible
+    for (const message of this.messages) {
+      const messageElement = element.querySelector(`[data-message-id="${message.id}"]`);
+      if (messageElement) {
+        const messageRect = messageElement.getBoundingClientRect();
+        const messageTop = messageRect.top - containerTop + scrollTop;
+        
+        if (messageTop >= scrollTop - 50) { // 50px de margen
+          return message;
+        }
+      }
+    }
+
+    return this.messages[0] || null;
+  }
+
   scrollToBottom() {
+    // No hacer scroll si estamos restaurando posición o cargando mensajes antiguos
+    if (this.isRestoringScroll || this.scrollRestorationPending || this.isPrependingMessages) {
+      return;
+    }
+
     if (this.messagesListRef) {
       const element = this.messagesListRef.nativeElement;
       element.scrollTop = element.scrollHeight;
     }
   }
 
-  loadMessages() {
+  loadMessages(loadMore: boolean = false, forceScrollToBottom: boolean = false) {
     if (!this.selectedConversation) return;
 
-    this.apiService.getMessages(this.selectedConversation.id).subscribe({
-      next: (messages) => {
-        const previousLength = this.messages.length;
-        this.messages = messages;
-        
-        // Log para debugging de mensajes con media
-        const messagesWithMedia = messages.filter(m => m.media_url);
-        if (messagesWithMedia.length > 0) {
-          console.log('📷 Mensajes con media recibidos en frontend:', 
-            messagesWithMedia.map(m => ({ 
-              id: m.id, 
-              media_url: m.media_url?.substring(0, 50), 
-              media_type: m.media_type,
-              hasId: !!m.id
-            }))
-          );
+    // Si está cargando más mensajes, no hacer nada
+    if (this.loadingMoreMessages) return;
+
+    // Verificar si el usuario está al final antes de recargar (solo si no es carga inicial)
+    // NO verificar si estamos restaurando el scroll para evitar interferencias
+    // CRÍTICO: Verificar ANTES de hacer la petición para saber si debemos hacer scroll después
+    const element = this.messagesListRef?.nativeElement;
+    let wasUserAtBottom = this.isUserAtBottom; // Guardar el estado anterior
+    
+    if (!loadMore && element && this.messages.length > 0 && !this.isRestoringScroll && !this.scrollRestorationPending) {
+      const scrollTop = element.scrollTop;
+      const scrollHeight = element.scrollHeight;
+      const clientHeight = element.clientHeight;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      
+      // Considerar que está al final si está a menos de 100px del final
+      // CRÍTICO: Actualizar el estado ANTES de hacer la petición
+      this.isUserAtBottom = distanceFromBottom < 100;
+    }
+
+    // Si es carga inicial, resetear paginación
+    if (!loadMore) {
+      const previousScrollHeight = element?.scrollHeight || 0;
+      const previousScrollTop = element?.scrollTop || 0;
+      
+      // CRÍTICO: Detectar si ya hay mensajes antiguos cargados
+      // Si el usuario ha cargado mensajes antiguos, debemos preservarlos
+      const hasOldMessagesLoaded = this.hasMoreMessages || this.oldestMessageId !== null;
+      const isInitialLoad = this.messages.length === 0;
+      
+      this.loadingMoreMessages = true;
+      const beforeId = undefined;
+
+      this.apiService.getMessages(this.selectedConversation.id, this.messagesLimit, beforeId).subscribe({
+        next: (response) => {
+          // Guardar los IDs de los mensajes anteriores para detectar nuevos
+          const previousMessageIds = new Set(this.messages.map(m => m.id));
+          
+          // CRÍTICO: Si ya hay mensajes antiguos cargados, preservarlos y solo agregar nuevos al final
+          // Si es carga inicial, reemplazar todos los mensajes
+          if (isInitialLoad || !hasOldMessagesLoaded) {
+            // Carga inicial: reemplazar todos los mensajes
+            this.messages = response.messages;
+          } else {
+            // Ya hay mensajes antiguos cargados: preservar los antiguos y agregar solo los nuevos al final
+            const existingMessageIds = new Set(this.messages.map(m => m.id));
+            const newMessages = response.messages.filter(m => !existingMessageIds.has(m.id));
+            
+            // Solo agregar mensajes nuevos al final, preservando los antiguos
+            if (newMessages.length > 0) {
+              this.messages = [...this.messages, ...newMessages];
+            }
+            
+            // NO actualizar oldestMessageId ni hasMoreMessages porque ya están cargados
+            // Solo actualizar totalMessages para reflejar el total real
+            this.totalMessages = response.pagination.total;
+            
+            // Marcar para detección de cambios y salir temprano
+            this.cdr.markForCheck();
+            this.loadingMoreMessages = false;
+            
+            // Si hay mensajes nuevos, preservar el scroll
+            if (newMessages.length > 0) {
+              requestAnimationFrame(() => {
+                setTimeout(() => {
+                  if (this.isRestoringScroll || this.scrollRestorationPending) {
+                    return;
+                  }
+                  
+                  // Preservar posición del scroll
+                  const newElement = this.messagesListRef?.nativeElement;
+                  if (newElement && previousScrollHeight > 0 && previousScrollTop > 0) {
+                    const newScrollHeight = newElement.scrollHeight;
+                    const scrollDifference = newScrollHeight - previousScrollHeight;
+                    
+                    if (Math.abs(scrollDifference) > 1) {
+                      const newScrollTop = previousScrollTop + scrollDifference;
+                      newElement.scrollTop = newScrollTop;
+                    }
+                  }
+                }, 0);
+              });
+            }
+            
+            return; // Salir temprano si ya hay mensajes antiguos cargados
+          }
+          
+          // Actualizar información de paginación (solo si es carga inicial)
+          this.hasMoreMessages = response.pagination.hasMore;
+          this.oldestMessageId = response.pagination.oldestMessageId;
+          this.totalMessages = response.pagination.total;
+          
+          // Detectar si hay mensajes nuevos (que no estaban antes)
+          const newMessages = response.messages.filter(m => !previousMessageIds.has(m.id));
+          const hasNewMessages = newMessages.length > 0;
+          
+          // CRÍTICO: Verificar nuevamente si el usuario está al final DESPUÉS de actualizar los mensajes
+          // porque el scrollHeight puede haber cambiado
+          const newElement = this.messagesListRef?.nativeElement;
+          let currentIsUserAtBottom = this.isUserAtBottom;
+          
+          if (newElement && this.messages.length > 0) {
+            const currentScrollTop = newElement.scrollTop;
+            const currentScrollHeight = newElement.scrollHeight;
+            const currentClientHeight = newElement.clientHeight;
+            const currentDistanceFromBottom = currentScrollHeight - currentScrollTop - currentClientHeight;
+            
+            // Actualizar el estado basado en la posición ACTUAL después de actualizar los mensajes
+            currentIsUserAtBottom = currentDistanceFromBottom < 100;
+          }
+          
+          // CRÍTICO: Solo hacer scroll al final si:
+          // 1. Es carga inicial (no hay mensajes previos) - pero solo si realmente no había mensajes antes
+          // 2. El usuario estaba al final ANTES Y DESPUÉS de actualizar Y hay mensajes nuevos
+          // 3. Se fuerza el scroll (por ejemplo, al enviar un mensaje)
+          const wasInitialLoad = previousMessageIds.size === 0;
+          
+          // IMPORTANTE: Solo hacer scroll si el usuario estaba al final ANTES de la petición
+          // Y sigue al final DESPUÉS de actualizar los mensajes
+          // Esto evita que se mueva cuando el usuario está leyendo arriba
+          const shouldScroll = wasInitialLoad || 
+                              (this.isUserAtBottom && currentIsUserAtBottom && hasNewMessages) || 
+                              forceScrollToBottom;
+          
+          // Marcar para detección de cambios (OnPush requiere esto)
+          this.cdr.markForCheck();
+          
+          // Usar requestAnimationFrame para asegurar que el DOM se haya actualizado
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              // No hacer scroll si estamos restaurando posición
+              if (this.isRestoringScroll || this.scrollRestorationPending) {
+                return;
+              }
+              
+              if (shouldScroll) {
+                // Solo hacer scroll si realmente debemos hacerlo
+                this.shouldScrollToBottom = true;
+              } else {
+                // CRÍTICO: Preservar la posición del scroll cuando hay mensajes nuevos pero el usuario no está al final
+                // Esto es especialmente importante durante el polling
+                const newElement = this.messagesListRef?.nativeElement;
+                if (newElement && previousScrollHeight > 0 && previousScrollTop > 0) {
+                  const newScrollHeight = newElement.scrollHeight;
+                  const scrollDifference = newScrollHeight - previousScrollHeight;
+                  
+                  // Solo ajustar si hay una diferencia significativa
+                  if (Math.abs(scrollDifference) > 1) {
+                    // Cuando hay mensajes nuevos pero el usuario está leyendo arriba,
+                    // ajustar el scrollTop para mantener la misma posición visual
+                    const newScrollTop = previousScrollTop + scrollDifference;
+                    newElement.scrollTop = newScrollTop;
+                  }
+                }
+              }
+            }, 0);
+          });
+          
+          this.loadingMoreMessages = false;
+        },
+        error: (error) => {
+          console.error('Error cargando mensajes:', error);
+          this.loadingMoreMessages = false;
         }
+      });
+    } else {
+      // Cargar más mensajes antiguos (prepend al inicio)
+      this.loadingMoreMessages = true;
+      const beforeId = this.oldestMessageId ? this.oldestMessageId : undefined;
+      
+      // CRÍTICO: Guardar el estado del scroll ANTES de hacer la petición
+      // Solo guardar si realmente hay un elemento y mensajes existentes
+      const element = this.messagesListRef?.nativeElement;
+      if (element && this.messages.length > 0) {
+        // Guardar estado inmediatamente (sincrónico) antes de cualquier cambio
+        // NO usar requestAnimationFrame aquí porque necesitamos los valores actuales
+        this.previousScrollHeight = element.scrollHeight;
+        this.previousScrollTop = element.scrollTop;
         
-        // Scroll solo si hay nuevos mensajes
-        if (messages.length > previousLength) {
-          this.shouldScrollToBottom = true;
-        }
-      },
-      error: (error) => {
-        console.error('Error cargando mensajes:', error);
+        // Guardar el ID del primer mensaje visible como referencia
+        const firstVisibleMessage = this.getFirstVisibleMessage();
+        this.referenceMessageId = firstVisibleMessage?.id || null;
+        
+        this.isPrependingMessages = true;
+        this.scrollRestorationPending = true;
+      } else {
+        // Si no hay elemento o mensajes, no necesitamos restaurar scroll
+        this.isPrependingMessages = false;
+        this.scrollRestorationPending = false;
+        this.previousScrollHeight = 0;
+        this.previousScrollTop = 0;
       }
-    });
+
+      this.apiService.getMessages(this.selectedConversation.id, this.messagesLimit, beforeId).subscribe({
+        next: (response) => {
+          // Validar que hay mensajes nuevos antes de agregar
+          if (response.messages.length === 0) {
+            this.hasMoreMessages = false;
+            this.loadingMoreMessages = false;
+            this.isPrependingMessages = false;
+            this.scrollRestorationPending = false;
+            this.cdr.markForCheck();
+            return;
+          }
+
+          // Agregar mensajes antiguos al inicio del array
+          this.messages = [...response.messages, ...this.messages];
+          
+          // Actualizar información de paginación
+          this.hasMoreMessages = response.pagination.hasMore;
+          this.oldestMessageId = response.pagination.oldestMessageId;
+          this.totalMessages = response.pagination.total;
+          
+          // Marcar para detección de cambios (OnPush requiere esto)
+          // Usar requestAnimationFrame para asegurar que el DOM se haya actualizado
+          requestAnimationFrame(() => {
+            this.cdr.markForCheck();
+            // La restauración del scroll se hará en ngAfterViewChecked
+            // después de que Angular renderice los nuevos elementos
+          });
+          
+          this.loadingMoreMessages = false;
+        },
+        error: (error) => {
+          console.error('Error cargando mensajes:', error);
+          this.loadingMoreMessages = false;
+          this.isPrependingMessages = false;
+          this.scrollRestorationPending = false;
+          this.isRestoringScroll = false;
+          this.cdr.markForCheck();
+        }
+      });
+    }
+  }
+
+  loadMoreMessages() {
+    // Validaciones adicionales para evitar cargas innecesarias
+    if (this.hasMoreMessages && 
+        !this.loadingMoreMessages && 
+        !this.isRestoringScroll &&
+        !this.scrollRestorationPending) {
+      this.loadMessages(true);
+    }
+  }
+
+  onMessagesScroll(event: Event) {
+    // Ignorar eventos de scroll durante la restauración para evitar interferencias
+    if (this.isRestoringScroll || this.scrollRestorationPending) {
+      return;
+    }
+
+    const element = event.target as HTMLElement;
+    
+    // Detectar si el usuario está al final del scroll
+    const scrollTop = element.scrollTop;
+    const scrollHeight = element.scrollHeight;
+    const clientHeight = element.clientHeight;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    
+    // Actualizar el estado de si el usuario está al final
+    // Solo actualizar si no estamos restaurando el scroll
+    if (!this.isRestoringScroll && !this.scrollRestorationPending) {
+      this.isUserAtBottom = distanceFromBottom < 100;
+    }
+    
+    // Si el usuario está cerca del inicio (top), cargar más mensajes
+    // Agregar debounce para evitar múltiples cargas rápidas
+    const now = Date.now();
+    const timeSinceLastLoad = now - this.lastLoadMoreTime;
+    
+    // CRÍTICO: Solo cargar si realmente está cerca del top Y no está cargando
+    // Aumentar el threshold para evitar cargas prematuras
+    if (scrollTop < 200 && // Threshold aumentado a 200px
+        this.hasMoreMessages && 
+        !this.loadingMoreMessages && 
+        !this.isRestoringScroll &&
+        !this.scrollRestorationPending &&
+        !this.isPrependingMessages &&
+        timeSinceLastLoad > 500) { // Evitar cargar más de una vez cada 500ms
+      this.lastLoadMoreTime = now;
+      this.loadMoreMessages();
+    }
   }
 
   sendMessage() {
@@ -277,14 +692,10 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
           this.newMessage = '';
           this.clearFileSelection();
           this.sending = false;
-          // Recargar mensajes inmediatamente
-          this.loadMessages();
+          // Forzar scroll al final cuando se envía un archivo
+          this.loadMessages(false, true);
           // Recargar conversaciones para actualizar last_message
           this.loadConversations();
-          // Scroll al final después de enviar
-          setTimeout(() => {
-            this.shouldScrollToBottom = true;
-          }, 100);
         },
         error: (error) => {
           console.error('Error enviando mensaje con archivo:', error);
@@ -300,14 +711,10 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
         next: () => {
           this.newMessage = '';
           this.sending = false;
-          // Recargar mensajes inmediatamente
-          this.loadMessages();
+          // Forzar scroll al final cuando se envía un mensaje de texto
+          this.loadMessages(false, true);
           // Recargar conversaciones para actualizar last_message
           this.loadConversations();
-          // Scroll al final después de enviar
-          setTimeout(() => {
-            this.shouldScrollToBottom = true;
-          }, 100);
         },
         error: (error) => {
           console.error('Error enviando mensaje:', error);
@@ -370,15 +777,29 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
         // El panel solo se oculta cuando el usuario hace clic explícitamente
         this.loadConversations(false);
         if (this.selectedConversation) {
-          this.loadMessages();
+          // NO recargar mensajes durante polling si estamos restaurando scroll o cargando más mensajes
+          // Esto evita interferencias con la paginación y el scroll del usuario
+          if (!this.isRestoringScroll && 
+              !this.scrollRestorationPending && 
+              !this.loadingMoreMessages &&
+              !this.isPrependingMessages) {
+            // No forzar scroll al final durante polling, solo si el usuario está al final y hay nuevos mensajes
+            this.loadMessages(false, false);
+          }
         }
       }
     }, 5000);
   }
   
-  // TrackBy function para optimizar el renderizado de la lista
+  // TrackBy function para optimizar el renderizado de la lista de conversaciones
   trackByConversationId(index: number, conversation: Conversation): number {
     return conversation.id;
+  }
+
+  // TrackBy function para optimizar el renderizado de la lista de mensajes
+  // CRÍTICO: Usar el ID del mensaje, no el índice, para evitar re-renderizados innecesarios
+  trackByMessageId(index: number, message: Message): number {
+    return message.id;
   }
 
   formatDate(dateString: string): string {
@@ -521,7 +942,6 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     // En producción, environment.apiUrl puede estar vacío, así que usar la misma lógica que inbox-api.service
     const baseUrl = environment.apiUrl || '';
     const proxyUrl = `${baseUrl}/api/messages/${messageId}/media`;
-    console.log('🔗 getMediaProxyUrl:', { messageId, baseUrl, proxyUrl });
     return proxyUrl;
   }
 

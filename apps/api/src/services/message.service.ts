@@ -253,15 +253,58 @@ export const getConversationById = async (conversationId: number): Promise<Conve
  * MULTITENANT: Esta función NO valida el tenant directamente.
  * Los controladores DEBEN validar primero que la conversación pertenece al tenant
  * usando getConversationById y verificando conversation.store_id === req.tenant.id
+ * 
+ * @param conversationId ID de la conversación
+ * @param limit Número máximo de mensajes a retornar (por defecto: todos)
+ * @param offset Número de mensajes a saltar (para paginación)
+ * @param beforeId ID del mensaje más antiguo a partir del cual cargar (para cursor-based pagination)
  */
-export const getMessages = async (conversationId: number): Promise<Message[]> => {
+export const getMessages = async (
+  conversationId: number,
+  limit?: number,
+  offset?: number,
+  beforeId?: number
+): Promise<Message[]> => {
+  let query = `SELECT * FROM messages WHERE conversation_id = $1`;
+  const params: any[] = [conversationId];
+  let paramIndex = 2;
+
+  // Si se especifica beforeId, cargar mensajes anteriores a ese ID
+  if (beforeId) {
+    query += ` AND id < $${paramIndex}`;
+    params.push(beforeId);
+    paramIndex++;
+  }
+
+  query += ` ORDER BY created_at DESC`;
+
+  // Aplicar limit y offset si se especifican
+  if (limit) {
+    query += ` LIMIT $${paramIndex}`;
+    params.push(limit);
+    paramIndex++;
+  }
+  
+  if (offset) {
+    query += ` OFFSET $${paramIndex}`;
+    params.push(offset);
+  }
+
+  const result = await pool.query(query, params);
+  
+  // Retornar en orden ascendente (más antiguos primero) para facilitar el renderizado
+  return result.rows.reverse();
+};
+
+/**
+ * Obtener el conteo total de mensajes de una conversación
+ */
+export const getMessageCount = async (conversationId: number): Promise<number> => {
   const result = await pool.query(
-    `SELECT * FROM messages
-     WHERE conversation_id = $1
-     ORDER BY created_at ASC`,
+    `SELECT COUNT(*) as count FROM messages WHERE conversation_id = $1`,
     [conversationId]
   );
-  return result.rows;
+  return parseInt(result.rows[0].count);
 };
 
 /**

@@ -11,8 +11,9 @@
 export const environment = {
   production: true,
   // URL relativa - nginx hará proxy reverso a localhost:3333
-  apiUrl: ''
+  apiUrl: '',
   // Alternativa si el backend está directamente accesible:
   // apiUrl: 'http://localhost:3333/api'
+  messagesLimit: 50 // Número de mensajes a cargar por vez (puede ser sobrescrito por variable de entorno del backend)
 };
 

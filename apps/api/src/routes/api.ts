@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 // Importar tipos extendidos de Express
 import '../types/express';
-import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, updateConversationMode, deleteConversation, getMessageById } from '../services/message.service';
+import { getConversations, getMessages, getConversationById, markConversationAsHandled, saveMessage, updateConversationMode, deleteConversation, getMessageById, getMessageCount } from '../services/message.service';
 import { getStoreById } from '../services/message.service';
 import { sendText, sendMedia } from '../services/twilio.service';
 import { getContacts, getContactById, getContactByPhone, upsertContact, updateContact, deleteContact, getMessageLocations } from '../services/contact.service';
@@ -105,7 +105,11 @@ router.get('/conversations', async (req: Request, res: Response) => {
 /**
  * GET /api/conversations/:conversationId/messages
  * 
- * Obtiene los mensajes de una conversación específica
+ * Obtiene los mensajes de una conversación específica con soporte de paginación
+ * 
+ * Query parameters:
+ * - limit: Número máximo de mensajes a retornar (por defecto: 50)
+ * - beforeId: ID del mensaje más antiguo a partir del cual cargar (para cargar mensajes anteriores)
  * 
  * MULTITENANT: Valida que la conversación pertenece al tenant actual
  */
@@ -138,7 +142,23 @@ router.get('/conversations/:conversationId/messages', async (req: Request, res: 
       return res.status(404).json({ error: 'Conversación no encontrada' });
     }
 
-    const messages = await getMessages(conversationId);
+    // Obtener parámetros de paginación
+    // El límite por defecto se puede configurar en .env con MESSAGES_LIMIT (por defecto: 50)
+    const defaultLimit = process.env.MESSAGES_LIMIT ? parseInt(process.env.MESSAGES_LIMIT) : 50;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : defaultLimit;
+    const beforeId = req.query.beforeId ? parseInt(req.query.beforeId as string) : undefined;
+
+    // Validar parámetros
+    if (limit && (isNaN(limit) || limit < 1 || limit > 100)) {
+      return res.status(400).json({ error: 'limit debe ser un número entre 1 y 100' });
+    }
+
+    if (beforeId && isNaN(beforeId)) {
+      return res.status(400).json({ error: 'beforeId debe ser un número válido' });
+    }
+
+    const messages = await getMessages(conversationId, limit, undefined, beforeId);
+    const totalCount = await getMessageCount(conversationId);
     
     // Log para debugging de mensajes con media
     const messagesWithMedia = messages.filter(m => m.media_url);
@@ -148,7 +168,19 @@ router.get('/conversations/:conversationId/messages', async (req: Request, res: 
       );
     }
     
-    res.json(messages);
+    // Determinar si hay más mensajes antiguos
+    const hasMore = beforeId ? messages.length === limit : totalCount > messages.length;
+    const oldestMessageId = messages.length > 0 ? messages[0].id : null;
+
+    res.json({
+      messages,
+      pagination: {
+        total: totalCount,
+        limit,
+        hasMore,
+        oldestMessageId
+      }
+    });
   } catch (error) {
     console.error('Error obteniendo mensajes:', error);
     res.status(500).json({ error: 'Error al obtener mensajes' });

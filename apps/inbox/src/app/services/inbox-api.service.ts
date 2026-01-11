@@ -76,8 +76,19 @@ export class InboxApiService {
     return this.http.get<Conversation[]>(`${this.apiUrl}/conversations?storeId=${storeId}`);
   }
 
-  getMessages(conversationId: number): Observable<Message[]> {
-    return this.http.get<Message[]>(`${this.apiUrl}/conversations/${conversationId}/messages`);
+  getMessages(conversationId: number, limit?: number, beforeId?: number): Observable<{ messages: Message[]; pagination: { total: number; limit: number; hasMore: boolean; oldestMessageId: number | null } }> {
+    let url = `${this.apiUrl}/conversations/${conversationId}/messages`;
+    const params: string[] = [];
+    if (limit) {
+      params.push(`limit=${limit}`);
+    }
+    if (beforeId) {
+      params.push(`beforeId=${beforeId}`);
+    }
+    if (params.length > 0) {
+      url += `?${params.join('&')}`;
+    }
+    return this.http.get<{ messages: Message[]; pagination: { total: number; limit: number; hasMore: boolean; oldestMessageId: number | null } }>(url);
   }
 
   replyToConversation(conversationId: number, text: string): Observable<ReplyResponse> {

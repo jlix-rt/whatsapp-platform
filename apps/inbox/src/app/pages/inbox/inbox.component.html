@@ -105,9 +105,20 @@
         </div>
 
         <!-- Lista de mensajes -->
-        <div class="messages-list" #messagesList>
+        <div class="messages-list" #messagesList (scroll)="onMessagesScroll($event)">
+          <!-- Indicador de carga de mensajes antiguos -->
+          <div *ngIf="loadingMoreMessages" class="loading-more-messages">
+            <span class="loading-spinner">⟳</span> Cargando mensajes anteriores...
+          </div>
+          <!-- Botón para cargar más mensajes -->
+          <div *ngIf="hasMoreMessages && !loadingMoreMessages" class="load-more-container">
+            <button class="load-more-button" (click)="loadMoreMessages()">
+              Cargar mensajes anteriores ({{ totalMessages - messages.length }} restantes)
+            </button>
+          </div>
           <div
-            *ngFor="let message of messages"
+            *ngFor="let message of messages; trackBy: trackByMessageId"
+            [attr.data-message-id]="message.id"
             class="message"
             [class.inbound]="message.direction === 'inbound'"
             [class.outbound]="message.direction === 'outbound'"

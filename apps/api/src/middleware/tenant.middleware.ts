@@ -72,7 +72,7 @@ export const tenantMiddleware = async (
       const hostWithoutPort = hostString.split(':')[0].toLowerCase();
       if (hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1' || hostWithoutPort.startsWith('localhost')) {
         tenantId = 'crunchypaws';
-        console.log('🏠 [TENANT] Ambiente local detectado, usando tenant por defecto: crunchypaws');
+        // console.log('🏠 [TENANT] Ambiente local detectado, usando tenant por defecto: crunchypaws');
       } else {
         console.error(`❌ [TENANT ERROR] No se pudo extraer tenant_id del host: ${hostString}`);
         console.error('   Host desglosado:', {
@@ -185,7 +185,7 @@ function extractTenantIdFromHost(host: string): string | null {
 
   // Validaciones básicas
   if (parts.length < 2) {
-    console.warn('⚠️  [EXTRACT] Host tiene menos de 2 partes, no hay subdominio');
+    // console.warn('⚠️  [EXTRACT] Host tiene menos de 2 partes, no hay subdominio');
     return null;
   }
 
