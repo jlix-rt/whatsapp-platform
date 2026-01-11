@@ -5,6 +5,7 @@ import { getConversations, getMessages, getConversationById, markConversationAsH
 import { getStoreById } from '../services/message.service';
 import { sendText, sendMedia } from '../services/twilio.service';
 import { getContacts, getContactById, getContactByPhone, upsertContact, updateContact, deleteContact, getMessageLocations } from '../services/contact.service';
+import { savePushSubscription, deletePushSubscription } from '../services/push-notification.service';
 import multer from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -935,6 +936,53 @@ router.post('/conversations/:conversationId/save-as-contact', async (req: Reques
   } catch (error: any) {
     console.error('Error guardando como contacto:', error);
     res.status(500).json({ error: 'Error al guardar como contacto', message: error.message });
+  }
+});
+
+// ============================================================================
+// ENDPOINTS DE NOTIFICACIONES PUSH
+// ============================================================================
+
+/**
+ * POST /api/push/subscribe
+ * 
+ * Guarda una suscripción push para enviar notificaciones
+ */
+router.post('/push/subscribe', async (req: Request, res: Response) => {
+  try {
+    const { subscription } = req.body;
+
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ error: 'Suscripción inválida' });
+    }
+
+    await savePushSubscription(subscription);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error guardando suscripción push:', error);
+    res.status(500).json({ error: 'Error al guardar suscripción', message: error.message });
+  }
+});
+
+/**
+ * DELETE /api/push/unsubscribe
+ * 
+ * Elimina una suscripción push
+ * Nota: Express no parsea body en DELETE por defecto, así que usamos POST o leemos el body manualmente
+ */
+router.post('/push/unsubscribe', async (req: Request, res: Response) => {
+  try {
+    const { endpoint } = req.body;
+
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint requerido' });
+    }
+
+    await deletePushSubscription(endpoint);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error eliminando suscripción push:', error);
+    res.status(500).json({ error: 'Error al eliminar suscripción', message: error.message });
   }
 });
 

@@ -1,6 +1,7 @@
 import { sendText } from '../services/twilio.service';
 import { getConversation, getOrCreateConversation, saveMessage, updateConversationMode, getStoreById, restoreConversation } from '../services/message.service';
 import { Store } from '../services/message.service';
+import { notifyBotMessage } from '../services/push-notification.service';
 
 /**
  * Flow de manejo de mensajes para Crunchy Paws
@@ -71,8 +72,20 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     return res.status(200).end();
   }
 
-  // Modo BOT: enviar mensaje de bienvenida y cambiar a modo HUMAN
+  // Modo BOT: enviar notificación push y luego responder automáticamente
   if (conversation.mode === 'BOT') {
+    // Enviar notificación push para alertar que hay un mensaje en modo BOT
+    try {
+      await notifyBotMessage(
+        conversation.id,
+        from,
+        body || (mediaUrl ? '[Imagen]' : latitude && longitude ? '[Ubicación]' : '[Sin texto]'),
+        tenant.name
+      );
+    } catch (error) {
+      // No fallar si las notificaciones push fallan
+      console.error('Error enviando notificación push:', error);
+    }
     const welcomeMessage = 'Hola, mucho gusto. Gracias por escribirnos. \nActualmente estamos trabajando en el canal de WhatsApp por lo que podemos demorarnos en contestar.\nTambién puedes escribirnos por instagram (@crunchypawsgt), facebook (Cruchy paws) o al WhatssApp +50258569667';
     
     // Enviar mensaje de bienvenida

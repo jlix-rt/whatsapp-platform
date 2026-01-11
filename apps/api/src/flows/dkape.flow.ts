@@ -1,6 +1,7 @@
 import { sendText } from '../services/twilio.service';
 import { getConversation, getOrCreateConversation, saveMessage, updateConversationMode, getStoreById, restoreConversation } from '../services/message.service';
 import { Store } from '../services/message.service';
+import { notifyBotMessage } from '../services/push-notification.service';
 
 /**
  * Flow de manejo de mensajes para DKape
@@ -47,8 +48,20 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     return res.status(200).end();
   }
 
-  // Modo BOT: responder automáticamente
+  // Modo BOT: enviar notificación push y luego responder automáticamente
   if (conversation.mode === 'BOT') {
+    // Enviar notificación push para alertar que hay un mensaje en modo BOT
+    try {
+      await notifyBotMessage(
+        conversation.id,
+        from,
+        body,
+        tenant.name
+      );
+    } catch (error) {
+      // No fallar si las notificaciones push fallan
+      console.error('Error enviando notificación push:', error);
+    }
     // Si el usuario responde "2", cambiar a modo HUMAN
     if (body === '2') {
       await updateConversationMode(conversation.id, 'HUMAN');

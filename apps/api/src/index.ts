@@ -71,10 +71,14 @@ const PORT = process.env.PORT || 3333;
 
 // Inicializar esquema, caché de tenants y luego iniciar servidor
 import { tenantCache } from './services/tenant-cache.service';
+import { initializePushNotifications } from './services/push-notification.service';
 
 initSchema()
   .then(() => tenantCache.initialize())
   .then(() => {
+    // Inicializar notificaciones push
+    initializePushNotifications();
+    
     app.listen(PORT, () => {
       console.log(`🚀 WhatsApp API corriendo en puerto ${PORT}`);
       console.log(`🏪 Modo multitenant: Identificación por subdominio`);
