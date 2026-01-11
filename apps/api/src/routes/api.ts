@@ -292,10 +292,40 @@ router.post('/conversations/:conversationId/reply-with-media', upload.single('fi
     await updateConversationMode(numericId, 'HUMAN');
 
     // Crear URL pública del archivo
-    // En producción, esto debería subirse a un servicio de almacenamiento (S3, Cloudinary, etc.)
-    // Por ahora, usaremos una URL local que será servida por el servidor
-    const baseUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 3333}`;
+    // Construir la URL basándose en el request actual para que sea accesible públicamente
+    // Usar x-forwarded-host si está disponible (cuando hay proxy reverso), sino usar host
+    const forwardedHost = req.headers['x-forwarded-host'] as string;
+    const host = forwardedHost || req.headers.host || 'localhost:3333';
+    
+    // Detectar protocolo: preferir x-forwarded-proto, luego verificar si la conexión es segura
+    let protocol = 'http';
+    if (req.headers['x-forwarded-proto']) {
+      protocol = req.headers['x-forwarded-proto'] as string;
+    } else if (req.secure || req.headers['x-forwarded-ssl'] === 'on') {
+      protocol = 'https';
+    }
+    
+    // Si API_URL está configurado, usarlo (debe ser una URL pública completa)
+    // Si no, construir desde el request
+    let baseUrl: string;
+    if (process.env.API_URL) {
+      baseUrl = process.env.API_URL;
+      console.log(`📎 Usando API_URL de entorno: ${baseUrl}`);
+    } else {
+      // Construir URL desde el request
+      baseUrl = `${protocol}://${host}`;
+      console.log(`📎 Construyendo URL desde request: ${baseUrl} (host: ${host}, protocol: ${protocol})`);
+    }
+    
     const mediaUrl = `${baseUrl}/api/uploads/${file.filename}`;
+    
+    console.log(`📎 URL del archivo para Twilio: ${mediaUrl}`);
+    console.log(`📎 Headers disponibles:`, {
+      'x-forwarded-host': req.headers['x-forwarded-host'],
+      'host': req.headers.host,
+      'x-forwarded-proto': req.headers['x-forwarded-proto'],
+      'secure': req.secure
+    });
 
     // Enviar mensaje con media usando las credenciales del tenant
     await sendMedia(conversation.phone_number, text, mediaUrl, file.mimetype, req.tenant);
