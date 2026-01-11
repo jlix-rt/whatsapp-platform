@@ -25,7 +25,7 @@ export class PushNotificationService {
    */
   async initialize(): Promise<boolean> {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      console.warn('Push messaging no está soportado');
+      console.warn('⚠️ Push messaging no está soportado en este navegador');
       return false;
     }
 
@@ -34,20 +34,65 @@ export class PushNotificationService {
       const registration = await navigator.serviceWorker.register('/sw.js');
       this.swRegistration = registration;
       
-      // Verificar si ya tenemos permisos
-      const permission = await Notification.requestPermission();
+      console.log('✅ Service Worker registrado:', registration.scope);
       
-      if (permission === 'granted') {
-        // Suscribirse a notificaciones push
-        await this.subscribe();
+      // Verificar permisos actuales
+      const currentPermission = Notification.permission;
+      console.log('📱 Permiso de notificaciones actual:', currentPermission);
+      
+      if (currentPermission === 'granted') {
+        // Ya tenemos permisos, verificar suscripción
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          console.log('✅ Ya estás suscrito a notificaciones push');
+          // Verificar que la suscripción esté en el servidor
+          await this.verifySubscription(subscription);
+        } else {
+          console.log('📝 No hay suscripción activa, creando una nueva...');
+          await this.subscribe();
+        }
         return true;
+      } else if (currentPermission === 'default') {
+        // Solicitar permisos
+        console.log('🔔 Solicitando permisos de notificación...');
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+          console.log('✅ Permisos concedidos, suscribiéndose...');
+          await this.subscribe();
+          return true;
+        } else {
+          console.warn('❌ Permisos de notificación denegados');
+          return false;
+        }
       } else {
-        console.warn('Permisos de notificación denegados');
+        console.warn('❌ Permisos de notificación bloqueados. Debes habilitarlos manualmente en la configuración del navegador.');
         return false;
       }
     } catch (error) {
-      console.error('Error inicializando notificaciones push:', error);
+      console.error('❌ Error inicializando notificaciones push:', error);
       return false;
+    }
+  }
+
+  /**
+   * Verifica que la suscripción esté guardada en el servidor
+   */
+  private async verifySubscription(subscription: PushSubscription): Promise<void> {
+    try {
+      const subscriptionData: PushSubscriptionData = {
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: this.arrayBufferToBase64(subscription.getKey('p256dh')!),
+          auth: this.arrayBufferToBase64(subscription.getKey('auth')!)
+        }
+      };
+      
+      // Re-enviar la suscripción al servidor para asegurar que esté guardada
+      await firstValueFrom(this.sendSubscriptionToServer(subscriptionData));
+      console.log('✅ Suscripción verificada y guardada en el servidor');
+    } catch (error) {
+      console.error('⚠️ Error verificando suscripción:', error);
     }
   }
 
@@ -65,6 +110,8 @@ export class PushNotificationService {
         userVisibleOnly: true,
         applicationServerKey: vapidKey as any as BufferSource
       });
+
+      console.log('✅ Suscripción creada:', subscription.endpoint);
 
       // Convertir la suscripción nativa a nuestro formato
       const p256dhKey = subscription.getKey('p256dh');
@@ -84,8 +131,9 @@ export class PushNotificationService {
 
       // Enviar la suscripción al backend
       await firstValueFrom(this.sendSubscriptionToServer(subscriptionData));
+      console.log('✅ Suscripción guardada en el servidor');
     } catch (error) {
-      console.error('Error suscribiéndose a notificaciones push:', error);
+      console.error('❌ Error suscribiéndose a notificaciones push:', error);
       throw error;
     }
   }
@@ -149,6 +197,30 @@ export class PushNotificationService {
 
     const subscription = await this.swRegistration.pushManager.getSubscription();
     return subscription !== null;
+  }
+
+  /**
+   * Obtiene información de diagnóstico
+   */
+  async getDiagnosticInfo(): Promise<any> {
+    const info: any = {
+      supported: 'serviceWorker' in navigator && 'PushManager' in window,
+      permission: Notification.permission,
+      serviceWorkerRegistered: this.swRegistration !== null,
+      subscribed: false,
+      subscriptionEndpoint: null,
+      vapidPublicKey: environment.vapidPublicKey ? 'Configurada' : 'No configurada'
+    };
+
+    if (this.swRegistration) {
+      const subscription = await this.swRegistration.pushManager.getSubscription();
+      if (subscription) {
+        info.subscribed = true;
+        info.subscriptionEndpoint = subscription.endpoint;
+      }
+    }
+
+    return info;
   }
 
   /**

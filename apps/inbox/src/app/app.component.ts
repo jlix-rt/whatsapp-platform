@@ -17,7 +17,12 @@ export class AppComponent implements OnInit {
   async ngOnInit() {
     // Inicializar notificaciones push cuando la app se carga
     try {
-      await this.pushNotificationService.initialize();
+      const initialized = await this.pushNotificationService.initialize();
+      if (initialized) {
+        // Mostrar información de diagnóstico en la consola
+        const diagnosticInfo = await this.pushNotificationService.getDiagnosticInfo();
+        console.log('📊 Estado de notificaciones push:', diagnosticInfo);
+      }
     } catch (error) {
       console.error('Error inicializando notificaciones push:', error);
     }
