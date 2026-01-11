@@ -46,6 +46,8 @@ export function initializePushNotifications(): void {
  * Guarda una suscripción push en la base de datos
  */
 export async function savePushSubscription(subscription: PushSubscription): Promise<void> {
+  console.log('💾 Guardando suscripción en base de datos...');
+  
   const query = `
     INSERT INTO push_subscriptions (endpoint, p256dh, auth)
     VALUES ($1, $2, $3)
@@ -56,11 +58,27 @@ export async function savePushSubscription(subscription: PushSubscription): Prom
       updated_at = CURRENT_TIMESTAMP
   `;
 
-  await pool.query(query, [
-    subscription.endpoint,
-    subscription.keys.p256dh,
-    subscription.keys.auth
-  ]);
+  try {
+    const result = await pool.query(query, [
+      subscription.endpoint,
+      subscription.keys.p256dh,
+      subscription.keys.auth
+    ]);
+    
+    console.log('✅ Suscripción guardada/actualizada en BD:', {
+      endpoint: subscription.endpoint.substring(0, 50) + '...',
+      rowCount: result.rowCount
+    });
+  } catch (error: any) {
+    console.error('❌ Error ejecutando query de suscripción:', error);
+    console.error('   Query:', query);
+    console.error('   Parámetros:', {
+      endpoint: subscription.endpoint.substring(0, 50) + '...',
+      hasP256dh: !!subscription.keys.p256dh,
+      hasAuth: !!subscription.keys.auth
+    });
+    throw error;
+  }
 }
 
 /**

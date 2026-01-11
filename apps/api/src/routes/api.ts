@@ -952,14 +952,25 @@ router.post('/push/subscribe', async (req: Request, res: Response) => {
   try {
     const { subscription } = req.body;
 
+    console.log('📥 Recibiendo suscripción push:', {
+      hasSubscription: !!subscription,
+      hasEndpoint: !!subscription?.endpoint,
+      hasKeys: !!subscription?.keys,
+      endpoint: subscription?.endpoint?.substring(0, 50) + '...'
+    });
+
     if (!subscription || !subscription.endpoint || !subscription.keys) {
+      console.error('❌ Suscripción inválida:', { subscription });
       return res.status(400).json({ error: 'Suscripción inválida' });
     }
 
     await savePushSubscription(subscription);
+    console.log('✅ Suscripción guardada exitosamente:', subscription.endpoint.substring(0, 50) + '...');
+    
     res.json({ success: true });
   } catch (error: any) {
-    console.error('Error guardando suscripción push:', error);
+    console.error('❌ Error guardando suscripción push:', error);
+    console.error('   Stack:', error.stack);
     res.status(500).json({ error: 'Error al guardar suscripción', message: error.message });
   }
 });
