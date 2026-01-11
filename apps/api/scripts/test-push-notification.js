@@ -4,9 +4,26 @@
  * Ejecutar: node scripts/test-push-notification.js
  */
 
-require('dotenv').config();
-const { pool } = require('../dist/db/pool');
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const webpush = require('web-push');
+
+// Importar pool de forma compatible
+let pool;
+try {
+  // Intentar importar desde dist (compilado)
+  const poolModule = require('../dist/db/pool');
+  pool = poolModule.pool || poolModule.default?.pool;
+  
+  // Si no funciona, intentar desde src (desarrollo con ts-node)
+  if (!pool) {
+    const poolSrc = require('../src/db/pool');
+    pool = poolSrc.pool;
+  }
+} catch (error) {
+  console.error('Error cargando pool de base de datos:', error.message);
+  console.error('Asegúrate de haber compilado el proyecto con: npm run build');
+  process.exit(1);
+}
 
 async function testPushNotification() {
   console.log('🧪 Probando notificaciones push...\n');
@@ -27,8 +44,15 @@ async function testPushNotification() {
   console.log('   Email:', vapidEmail);
   console.log('');
 
+  // Asegurar que el email tenga el prefijo mailto: si no lo tiene
+  let formattedEmail = vapidEmail;
+  if (!formattedEmail.startsWith('mailto:')) {
+    formattedEmail = `mailto:${formattedEmail}`;
+    console.log('⚠️  VAPID_EMAIL no tenía prefijo mailto:, se agregó automáticamente');
+  }
+
   // Configurar web-push
-  webpush.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey);
+  webpush.setVapidDetails(formattedEmail, vapidPublicKey, vapidPrivateKey);
 
   // Obtener suscripciones de la base de datos
   try {

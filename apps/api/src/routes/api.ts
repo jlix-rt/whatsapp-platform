@@ -986,5 +986,35 @@ router.post('/push/unsubscribe', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/push/test
+ * 
+ * Envía una notificación push de prueba a todas las suscripciones activas
+ * Útil para verificar que las notificaciones funcionan correctamente
+ */
+router.post('/push/test', async (req: Request, res: Response) => {
+  try {
+    const { sendPushNotification } = await import('../services/push-notification.service');
+    
+    await sendPushNotification(
+      '🧪 Prueba de notificación',
+      'Si ves esta notificación, las notificaciones push están funcionando correctamente!',
+      {
+        conversationId: 0,
+        phoneNumber: '+50200000000',
+        url: '/inbox'
+      }
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Notificación de prueba enviada a todas las suscripciones activas' 
+    });
+  } catch (error: any) {
+    console.error('Error enviando notificación de prueba:', error);
+    res.status(500).json({ error: 'Error al enviar notificación de prueba', message: error.message });
+  }
+});
+
 export default router;
 
