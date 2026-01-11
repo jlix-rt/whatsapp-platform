@@ -326,12 +326,14 @@ export const hasOutboundMessages = async (conversationId: number): Promise<boole
 };
 
 /**
- * Eliminar lógicamente una conversación (soft delete)
+ * Eliminar lógicamente una conversación (soft delete) y cambiar a modo BOT
  */
 export const deleteConversation = async (conversationId: number): Promise<Conversation> => {
   const result = await pool.query(
     `UPDATE conversations
-     SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     SET deleted_at = CURRENT_TIMESTAMP, 
+         mode = 'BOT',
+         updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND deleted_at IS NULL
      RETURNING *`,
     [conversationId]
