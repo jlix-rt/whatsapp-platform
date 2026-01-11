@@ -22,9 +22,6 @@ const dbPassword = process.env.DB_PASSWORD;
 if (dbPassword && typeof dbPassword === 'string' && dbPassword.trim().length > 0) {
   dbConfig.password = dbPassword.trim();
 }
-  hasPassword: !!dbConfig.password,
-  passwordDefined: 'password' in dbConfig
-});
 
 // Crear el pool con manejo de errores
 let pool: Pool;

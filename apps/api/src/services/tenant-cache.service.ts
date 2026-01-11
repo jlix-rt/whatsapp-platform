@@ -30,6 +30,7 @@ class TenantCacheService {
       });
 
       this.initialized = true;
+      
     } catch (error: any) {
       console.error('❌ [TENANT CACHE] Error inicializando caché:', error);
       throw error;

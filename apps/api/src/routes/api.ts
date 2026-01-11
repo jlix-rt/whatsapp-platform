@@ -159,7 +159,7 @@ router.get('/conversations/:conversationId/messages', async (req: Request, res: 
 
     const messages = await getMessages(conversationId, limit, undefined, beforeId);
     const totalCount = await getMessageCount(conversationId);
-    
+    const messagesWithMedia = messages.filter(m => m.media_url);
     
     // Determinar si hay más mensajes antiguos
     const hasMore = beforeId ? messages.length === limit : totalCount > messages.length;
@@ -340,8 +340,6 @@ router.post('/conversations/:conversationId/reply-with-media', upload.single('fi
     }
     
     const mediaUrl = `${baseUrl}/api/uploads/${file.filename}`;
-      'secure': req.secure
-    });
 
     // Enviar mensaje con media usando las credenciales del tenant
     await sendMedia(conversation.phone_number, text, mediaUrl, file.mimetype, req.tenant);

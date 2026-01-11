@@ -209,7 +209,7 @@ export const getConversations = async (storeId: number): Promise<any[]> => {
   // Debug: log para conversaciones con +50277777777
   result.rows.forEach((row: any) => {
     if (row.phone_number && row.phone_number.includes('77777777')) {
-      });
+      
     }
   });
   
