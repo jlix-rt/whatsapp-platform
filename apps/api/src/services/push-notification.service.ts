@@ -15,7 +15,7 @@ export interface PushSubscription {
 export function initializePushNotifications(): void {
   const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
   const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-  const vapidEmail = process.env.VAPID_EMAIL || 'mailto:admin@tiendasgt.com';
+  let vapidEmail = process.env.VAPID_EMAIL || 'mailto:admin@tiendasgt.com';
 
   if (!vapidPublicKey || !vapidPrivateKey) {
     console.warn('⚠️  VAPID keys no configuradas. Las notificaciones push no funcionarán.');
@@ -23,11 +23,23 @@ export function initializePushNotifications(): void {
     return;
   }
 
-  webpush.setVapidDetails(
-    vapidEmail,
-    vapidPublicKey,
-    vapidPrivateKey
-  );
+  // Asegurar que el email tenga el prefijo mailto: si no lo tiene
+  if (!vapidEmail.startsWith('mailto:')) {
+    vapidEmail = `mailto:${vapidEmail}`;
+  }
+
+  try {
+    webpush.setVapidDetails(
+      vapidEmail,
+      vapidPublicKey,
+      vapidPrivateKey
+    );
+    console.log('✅ Notificaciones push inicializadas correctamente');
+  } catch (error: any) {
+    console.error('❌ Error inicializando notificaciones push:', error.message);
+    console.error('   Verifica que VAPID_EMAIL tenga el formato correcto: mailto:email@ejemplo.com');
+    throw error;
+  }
 }
 
 /**
