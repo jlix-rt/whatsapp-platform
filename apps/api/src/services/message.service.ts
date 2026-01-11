@@ -79,6 +79,20 @@ export const getStoreBySlug = async (slug: string): Promise<Store | null> => {
 };
 
 /**
+ * Obtener todas las tiendas
+ * 
+ * MULTITENANT: Esta función se usa para cargar todos los tenants en el caché.
+ */
+export const getAllStores = async (): Promise<Store[]> => {
+  const result = await pool.query(
+    `SELECT id, slug, name, twilio_account_sid, twilio_auth_token, whatsapp_from, environment 
+     FROM stores 
+     ORDER BY slug`
+  );
+  return result.rows;
+};
+
+/**
  * Obtener tienda por ID
  * 
  * MULTITENANT: Esta función se usa para obtener las credenciales del tenant.

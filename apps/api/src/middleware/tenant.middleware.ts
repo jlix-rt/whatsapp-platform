@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { getStoreBySlug, Store } from '../services/message.service';
+import { Store } from '../services/message.service';
+import { tenantCache } from '../services/tenant-cache.service';
 
 /**
  * Middleware multitenant basado en subdominios
@@ -28,14 +29,16 @@ export const tenantMiddleware = async (
     const xForwardedHost = req.headers['x-forwarded-host'];
     const hostHeader = req.headers.host;
     
-    // Log temporal para debugging
-    console.log('🔍 [TENANT DEBUG] Headers recibidos:', {
-      'x-forwarded-host': xForwardedHost,
-      'host': hostHeader,
-      'origin': req.headers.origin,
-      'url': req.url,
-      'method': req.method
-    });
+    // Log solo si está habilitado el debug (evitar spam de logs)
+    if (process.env.DEBUG_TENANT === 'true') {
+      console.log('🔍 [TENANT DEBUG] Headers recibidos:', {
+        'x-forwarded-host': xForwardedHost,
+        'host': hostHeader,
+        'origin': req.headers.origin,
+        'url': req.url,
+        'method': req.method
+      });
+    }
 
     // Usar x-forwarded-host si está disponible, sino host
     const host = xForwardedHost || hostHeader;
@@ -89,16 +92,13 @@ export const tenantMiddleware = async (
     }
 
     // ========================================================================
-    // PASO 4: Consultar tenant en base de datos (incluyendo credenciales de Twilio)
+    // PASO 4: Obtener tenant del caché (optimizado - sin consulta a BD)
     // ========================================================================
-    // Esta consulta obtiene TODAS las credenciales de Twilio del tenant:
-    // - twilio_account_sid
-    // - twilio_auth_token
-    // - whatsapp_from
-    const store = await getStoreBySlug(tenantId);
+    // El caché se inicializa al arrancar el servicio, evitando consultas repetidas
+    const store = await tenantCache.getTenant(tenantId);
     
     if (!store) {
-      console.error(`❌ [TENANT ERROR] Tenant '${tenantId}' no encontrado en la base de datos`);
+      console.error(`❌ [TENANT ERROR] Tenant '${tenantId}' no encontrado`);
       res.status(404).json({ 
         error: `Tienda con slug '${tenantId}' no encontrada`,
         debug: {
@@ -110,21 +110,25 @@ export const tenantMiddleware = async (
     }
 
     // ========================================================================
-    // PASO 5: Validar y loguear credenciales de Twilio obtenidas
+    // PASO 5: Log solo si el tenant no estaba en caché (evitar spam)
     // ========================================================================
-    console.log(`✅ [TENANT] Tenant '${tenantId}' encontrado en BD:`, {
-      id: store.id,
-      name: store.name,
-      slug: store.slug,
-      hasTwilioAccountSid: !!store.twilio_account_sid,
-      hasTwilioAuthToken: !!store.twilio_auth_token,
-      hasWhatsappFrom: !!store.whatsapp_from,
-      environment: store.environment
-    });
+    // Solo loguear si fue necesario consultar la BD (tenant nuevo o caché no inicializado)
+    const wasInCache = tenantCache.isInitialized() && (tenantCache as any).cache.has(tenantId);
+    if (!wasInCache) {
+      console.log(`✅ [TENANT] Tenant '${tenantId}' obtenido desde BD:`, {
+        id: store.id,
+        name: store.name,
+        slug: store.slug,
+        hasTwilioAccountSid: !!store.twilio_account_sid,
+        hasTwilioAuthToken: !!store.twilio_auth_token,
+        hasWhatsappFrom: !!store.whatsapp_from,
+        environment: store.environment
+      });
 
-    // Advertencia si no tiene credenciales de Twilio configuradas
-    if (!store.twilio_account_sid || !store.twilio_auth_token) {
-      console.warn(`⚠️  [TENANT] Tenant '${tenantId}' no tiene credenciales de Twilio en BD. Se usarán variables de entorno como fallback.`);
+      // Advertencia si no tiene credenciales de Twilio configuradas
+      if (!store.twilio_account_sid || !store.twilio_auth_token) {
+        console.warn(`⚠️  [TENANT] Tenant '${tenantId}' no tiene credenciales de Twilio en BD. Se usarán variables de entorno como fallback.`);
+      }
     }
 
     // ========================================================================
@@ -229,7 +233,7 @@ export const optionalTenantMiddleware = async (
       const tenantId = extractTenantIdFromHost(hostString);
       
       if (tenantId) {
-        const store = await getStoreBySlug(tenantId);
+        const store = await tenantCache.getTenant(tenantId);
         if (store) {
           req.tenant = store;
         }

@@ -39,7 +39,10 @@ function getTwilioClient(tenant?: Store): any {
   let authToken: string | undefined;
   let whatsappFrom: string | undefined;
 
-  console.log('tenant getTwilioClient', tenant);
+  // Log solo si no hay tenant o si es la primera vez (evitar spam)
+  if (!tenant) {
+    console.log('⚠️  [TWILIO] getTwilioClient llamado sin tenant');
+  }
   if (tenant) {
     // Usar credenciales del tenant si están disponibles
     accountSid = tenant.twilio_account_sid || undefined;

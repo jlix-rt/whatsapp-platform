@@ -79,15 +79,21 @@ app.get('/health', (_, res) => res.send('OK'));
 
 const PORT = process.env.PORT || 3333;
 
-// Inicializar esquema y luego iniciar servidor
-initSchema().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 WhatsApp API corriendo en puerto ${PORT}`);
-    console.log(`🏪 Modo multitenant: Identificación por subdominio`);
-    console.log(`   Ejemplo: crunchypaws.inbox.tiendasgt.com → tenant_id = "crunchypaws"`);
+// Inicializar esquema, caché de tenants y luego iniciar servidor
+import { tenantCache } from './services/tenant-cache.service';
+
+initSchema()
+  .then(() => tenantCache.initialize())
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 WhatsApp API corriendo en puerto ${PORT}`);
+      console.log(`🏪 Modo multitenant: Identificación por subdominio`);
+      console.log(`   Ejemplo: crunchypaws.inbox.tiendasgt.com → tenant_id = "crunchypaws"`);
+      console.log(`📦 Caché de tenants inicializado - consultas optimizadas`);
+    });
+  })
+  .catch((error) => {
+    console.error('Error inicializando aplicación:', error);
+    process.exit(1);
   });
-}).catch((error) => {
-  console.error('Error inicializando aplicación:', error);
-  process.exit(1);
-});
 
