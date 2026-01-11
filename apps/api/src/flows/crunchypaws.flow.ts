@@ -1,5 +1,5 @@
 import { sendText } from '../services/twilio.service';
-import { getConversation, getOrCreateConversation, saveMessage, updateConversationMode, getStoreById, restoreConversation } from '../services/message.service';
+import { getConversation, getOrCreateConversation, saveMessage, getStoreById, restoreConversation } from '../services/message.service';
 import { Store } from '../services/message.service';
 import { notifyBotMessage } from '../services/push-notification.service';
 
@@ -92,8 +92,8 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     const sent = await sendText(from, welcomeMessage, tenant);
     await saveMessage(conversation.id, 'outbound', welcomeMessage);
     
-    // Cambiar a modo HUMAN después de enviar el mensaje
-    await updateConversationMode(conversation.id, 'HUMAN');
+    // NO cambiar a modo HUMAN aquí - la conversación permanece en BOT
+    // Solo se cambiará a HUMAN cuando un humano responda manualmente desde el inbox
     
     return res.status(200).end();
   }

@@ -1,5 +1,5 @@
 import { sendText } from '../services/twilio.service';
-import { getConversation, getOrCreateConversation, saveMessage, updateConversationMode, getStoreById, restoreConversation } from '../services/message.service';
+import { getConversation, getOrCreateConversation, saveMessage, getStoreById, restoreConversation } from '../services/message.service';
 import { Store } from '../services/message.service';
 import { notifyBotMessage } from '../services/push-notification.service';
 
@@ -62,12 +62,13 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
       // No fallar si las notificaciones push fallan
       console.error('Error enviando notificación push:', error);
     }
-    // Si el usuario responde "2", cambiar a modo HUMAN
+    // Si el usuario responde "2", informarle que será atendido pero NO cambiar a modo HUMAN automáticamente
+    // El cambio a HUMAN solo ocurrirá cuando un humano responda manualmente desde el inbox
     if (body === '2') {
-      await updateConversationMode(conversation.id, 'HUMAN');
       const responseMessage = 'Alguien se comunicará contigo en breve';
       const sent = await sendText(from, responseMessage, tenant);
       await saveMessage(conversation.id, 'outbound', responseMessage);
+      // NO cambiar a modo HUMAN aquí - permanece en BOT hasta que un humano responda manualmente
       return res.status(200).end();
     }
 
@@ -75,6 +76,7 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     const menuMessage = '¿Qué deseas hacer?\n1. Hacer pedido\n2. Hablar con una persona';
     const sent = await sendText(from, menuMessage, tenant);
     await saveMessage(conversation.id, 'outbound', menuMessage);
+    // NO cambiar a modo HUMAN aquí - la conversación permanece en BOT
     return res.status(200).end();
   }
 
