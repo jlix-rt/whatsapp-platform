@@ -43,7 +43,6 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     conversation = await getOrCreateConversation(storeId, from);
   } else if (conversation.deleted_at) {
     // Si la conversación está eliminada, restaurarla y ponerla en modo BOT
-    console.log(`♻️ Restaurando conversación eliminada ${conversation.id} para ${from}`);
     conversation = await restoreConversation(conversation.id);
   }
   
@@ -59,15 +58,6 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     longitude
   );
   
-  // Log para debugging de media
-  if (mediaUrl) {
-    console.log(`📷 Mensaje con media guardado:`, {
-      messageId: savedMessage.id,
-      mediaUrl: mediaUrl.substring(0, 100) + '...',
-      mediaType,
-      conversationId: conversation.id
-    });
-  }
 
   // Obtener el tenant completo para usar sus credenciales de Twilio
   const tenant = await getStoreById(storeId);
@@ -78,7 +68,6 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
 
   // Si la conversación está en modo HUMAN, solo guardar y no responder
   if (conversation.mode === 'HUMAN') {
-    console.log(`📝 Mensaje guardado (modo HUMAN) - Conversación ${conversation.id}`);
     return res.status(200).end();
   }
 
@@ -93,7 +82,6 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     // Cambiar a modo HUMAN después de enviar el mensaje
     await updateConversationMode(conversation.id, 'HUMAN');
     
-    console.log(`🤖 Mensaje de bienvenida enviado y conversación ${conversation.id} cambiada a modo HUMAN${sent ? '' : ' (simulado)'}`);
     return res.status(200).end();
   }
 

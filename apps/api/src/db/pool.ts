@@ -4,7 +4,6 @@ import * as dotenv from 'dotenv';
 
 
 dotenv.config();
-console.log('📁 Cargando .env');
 
 // Construir configuración de base de datos
 const dbConfig: any = {
@@ -19,30 +18,10 @@ const dbConfig: any = {
 
 // Manejar contraseña: solo agregar si está definida y no está vacía
 const dbPassword = process.env.DB_PASSWORD;
-console.log('🔍 Debug DB_PASSWORD:', {
-  value: dbPassword,
-  type: typeof dbPassword,
-  isEmpty: !dbPassword || (typeof dbPassword === 'string' && dbPassword.trim() === ''),
-  length: dbPassword?.length
-});
 
 if (dbPassword && typeof dbPassword === 'string' && dbPassword.trim().length > 0) {
   dbConfig.password = dbPassword.trim();
-  console.log('ℹ️  Usando contraseña configurada para PostgreSQL');
-} else {
-  // Si no hay contraseña, intentar con cadena vacía o sin password
-  // Algunas configuraciones de PostgreSQL requieren password explícito aunque esté vacío
-  console.log('ℹ️  DB_PASSWORD no configurado, intentando conexión sin contraseña');
-  // No agregar password al objeto - pg debería manejar la autenticación sin password
-  // Si falla, el usuario necesitará configurar DB_PASSWORD en .env
 }
-
-// Log de configuración (sin mostrar contraseña)
-console.log('📊 Configuración de BD:', {
-  host: dbConfig.host,
-  port: dbConfig.port,
-  database: dbConfig.database,
-  user: dbConfig.user,
   hasPassword: !!dbConfig.password,
   passwordDefined: 'password' in dbConfig
 });
@@ -81,7 +60,6 @@ export const initSchema = async () => {
     }
     const schema = fs.readFileSync(schemaPath, 'utf8');
     await pool.query(schema);
-    console.log('✅ Esquema de base de datos inicializado');
   } catch (error: any) {
     // No fallar la aplicación si hay error de conexión a la BD
     // Solo loguear el error con más detalles

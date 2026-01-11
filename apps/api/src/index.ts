@@ -33,16 +33,6 @@ app.use(express.json({ limit: '10mb' }));
 
 // Middleware de logging para debug (después del body parsing)
 app.use((req, res, next) => {
-  if (req.url.startsWith('/webhook')) {
-    console.log('📨 Webhook recibido:', {
-      method: req.method,
-      url: req.url,
-      contentType: req.headers['content-type'],
-      hasBody: !!req.body,
-      bodyKeys: req.body ? Object.keys(req.body) : 'no body',
-      bodySample: req.body ? JSON.stringify(req.body).substring(0, 200) : 'no body'
-    });
-  }
   next();
 });
 

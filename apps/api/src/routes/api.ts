@@ -160,13 +160,6 @@ router.get('/conversations/:conversationId/messages', async (req: Request, res: 
     const messages = await getMessages(conversationId, limit, undefined, beforeId);
     const totalCount = await getMessageCount(conversationId);
     
-    // Log para debugging de mensajes con media
-    const messagesWithMedia = messages.filter(m => m.media_url);
-    if (messagesWithMedia.length > 0) {
-      console.log(`📷 Mensajes con media encontrados: ${messagesWithMedia.length}`, 
-        messagesWithMedia.map(m => ({ id: m.id, media_url: m.media_url?.substring(0, 50), media_type: m.media_type }))
-      );
-    }
     
     // Determinar si hay más mensajes antiguos
     const hasMore = beforeId ? messages.length === limit : totalCount > messages.length;
@@ -237,9 +230,7 @@ router.post('/conversations/:conversationId/reply', async (req: Request, res: Re
 
     // Cambiar conversación a modo HUMAN ANTES de enviar el mensaje
     // Esto desactiva el bot para esta conversación inmediatamente
-    console.log(`🔄 Intentando cambiar conversación ${numericId} a modo HUMAN (modo actual: ${conversation.mode})`);
     const updatedConversation = await updateConversationMode(numericId, 'HUMAN');
-    console.log(`✅ Conversación ${numericId} cambiada a modo HUMAN (modo anterior: ${conversation.mode}, modo nuevo: ${updatedConversation.mode})`);
 
     // Enviar mensaje usando las credenciales del tenant
     await sendText(conversation.phone_number, text.trim(), req.tenant);
@@ -343,20 +334,12 @@ router.post('/conversations/:conversationId/reply-with-media', upload.single('fi
     let baseUrl: string;
     if (process.env.API_URL) {
       baseUrl = process.env.API_URL;
-      console.log(`📎 Usando API_URL de entorno: ${baseUrl}`);
     } else {
       // Construir URL desde el request
       baseUrl = `${protocol}://${host}`;
-      console.log(`📎 Construyendo URL desde request: ${baseUrl} (host: ${host}, protocol: ${protocol})`);
     }
     
     const mediaUrl = `${baseUrl}/api/uploads/${file.filename}`;
-    
-    console.log(`📎 URL del archivo para Twilio: ${mediaUrl}`);
-    console.log(`📎 Headers disponibles:`, {
-      'x-forwarded-host': req.headers['x-forwarded-host'],
-      'host': req.headers.host,
-      'x-forwarded-proto': req.headers['x-forwarded-proto'],
       'secure': req.secure
     });
 
@@ -441,8 +424,6 @@ router.post('/conversations/:conversationId/reset-bot', async (req: Request, res
     // Cambiar conversación a modo BOT
     const updatedConversation = await updateConversationMode(conversationId, 'BOT');
 
-    console.log(`🤖 Conversación ${conversationId} reseteada a modo BOT`);
-
     res.json({
       success: true,
       conversation: {
@@ -497,7 +478,6 @@ router.delete('/conversations/:conversationId', async (req: Request, res: Respon
     // Eliminar lógicamente la conversación
     const deletedConversation = await deleteConversation(conversationId);
 
-    console.log(`🗑️ Conversación ${conversationId} eliminada lógicamente`);
 
     res.json({
       success: true,
@@ -552,8 +532,6 @@ router.get('/uploads/:filename', (req: Request, res: Response) => {
  */
 router.get('/messages/:messageId/media', async (req: Request, res: Response) => {
   try {
-    console.log(`🖼️ Solicitud de media recibida: messageId=${req.params.messageId}`);
-    
     // Validar que el tenant fue identificado por el middleware
     if (!req.tenant) {
       console.error('❌ Tenant no identificado en proxy de media');
@@ -608,7 +586,6 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
     const isHttps = url.protocol === 'https:';
     const httpModule = isHttps ? https : http;
 
-    console.log(`🔄 Descargando media de Twilio: ${url.hostname}${url.pathname}`);
 
     // Hacer la solicitud a Twilio con autenticación
     const options = {
@@ -622,7 +599,6 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
     };
 
     const twilioRequest = httpModule.get(options, (twilioRes) => {
-      console.log(`📥 Respuesta de Twilio recibida: Status ${twilioRes.statusCode}, Content-Type: ${twilioRes.headers['content-type']}`);
       
       // Manejar redirecciones (301, 302, 307, 308)
       if (twilioRes.statusCode === 301 || twilioRes.statusCode === 302 || twilioRes.statusCode === 307 || twilioRes.statusCode === 308) {
@@ -632,7 +608,6 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
           return res.status(500).json({ error: 'Error: redirección sin Location header' });
         }
         
-        console.log(`🔄 Siguiendo redirección a: ${location}`);
         
         // Parsear la URL de redirección
         const redirectUrl = new URL(location, message.media_url || undefined);
@@ -651,7 +626,6 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
         };
         
         const redirectRequest = redirectHttpModule.get(redirectOptions, (redirectRes) => {
-          console.log(`📥 Respuesta de redirección: Status ${redirectRes.statusCode}, Content-Type: ${redirectRes.headers['content-type']}`);
           
           // Establecer headers de respuesta ANTES de hacer pipe
           res.setHeader('Content-Type', redirectRes.headers['content-type'] || message.media_type || 'image/jpeg');
@@ -666,7 +640,6 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
           // Pipe la respuesta al cliente
           redirectRes.pipe(res);
           redirectRes.on('end', () => {
-            console.log(`✅ Media enviada exitosamente para mensaje ${messageId}`);
           });
         });
         
@@ -699,9 +672,6 @@ router.get('/messages/:messageId/media', async (req: Request, res: Response) => 
 
       // Pipe la respuesta de Twilio al cliente
       twilioRes.pipe(res);
-      twilioRes.on('end', () => {
-        console.log(`✅ Media enviada exitosamente para mensaje ${messageId}`);
-      });
     });
 
     twilioRequest.on('error', (error) => {

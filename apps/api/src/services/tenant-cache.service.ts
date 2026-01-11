@@ -18,12 +18,10 @@ class TenantCacheService {
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
-      console.log('📦 [TENANT CACHE] Caché ya inicializado');
       return;
     }
 
     try {
-      console.log('📦 [TENANT CACHE] Inicializando caché de tenants...');
       const stores = await getAllStores();
       
       this.cache.clear();
@@ -32,20 +30,6 @@ class TenantCacheService {
       });
 
       this.initialized = true;
-      console.log(`✅ [TENANT CACHE] Caché inicializado con ${stores.length} tenant(s):`, 
-        stores.map(s => s.slug).join(', '));
-      
-      // Log de credenciales (sin mostrar valores sensibles)
-      stores.forEach(store => {
-        console.log(`   📊 [TENANT CACHE] ${store.slug}:`, {
-          id: store.id,
-          name: store.name,
-          hasTwilioAccountSid: !!store.twilio_account_sid,
-          hasTwilioAuthToken: !!store.twilio_auth_token,
-          hasWhatsappFrom: !!store.whatsapp_from,
-          environment: store.environment
-        });
-      });
     } catch (error: any) {
       console.error('❌ [TENANT CACHE] Error inicializando caché:', error);
       throw error;
@@ -63,12 +47,10 @@ class TenantCacheService {
     }
 
     // Si no está en caché, consultar BD y actualizar caché
-    console.log(`📦 [TENANT CACHE] Tenant '${slug}' no encontrado en caché, consultando BD...`);
     const store = await getStoreBySlug(slug);
     
     if (store) {
       this.cache.set(slug, store);
-      console.log(`✅ [TENANT CACHE] Tenant '${slug}' agregado al caché`);
     }
     
     return store;
@@ -79,16 +61,13 @@ class TenantCacheService {
    * Útil cuando se actualiza información del tenant en la BD
    */
   async refreshTenant(slug: string): Promise<void> {
-    console.log(`🔄 [TENANT CACHE] Actualizando caché para tenant '${slug}'...`);
     const store = await getStoreBySlug(slug);
     
     if (store) {
       this.cache.set(slug, store);
-      console.log(`✅ [TENANT CACHE] Tenant '${slug}' actualizado en caché`);
     } else {
       // Si el tenant ya no existe, removerlo del caché
       this.cache.delete(slug);
-      console.log(`🗑️  [TENANT CACHE] Tenant '${slug}' removido del caché (no existe en BD)`);
     }
   }
 
@@ -96,7 +75,6 @@ class TenantCacheService {
    * Refresca todo el caché recargando todos los tenants
    */
   async refreshCache(): Promise<void> {
-    console.log('🔄 [TENANT CACHE] Refrescando todo el caché...');
     this.initialized = false;
     await this.initialize();
   }
@@ -121,7 +99,6 @@ class TenantCacheService {
   clear(): void {
     this.cache.clear();
     this.initialized = false;
-    console.log('🗑️  [TENANT CACHE] Caché limpiado');
   }
 }
 

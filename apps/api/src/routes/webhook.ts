@@ -22,14 +22,6 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
 
   const tenant = req.tenant;
   
-  // Debug: ver qué está llegando
-  console.log('📥 Webhook recibido:', {
-    tenant: tenant.slug,
-    contentType: req.headers['content-type'],
-    body: req.body,
-    bodyType: typeof req.body,
-    bodyKeys: req.body ? Object.keys(req.body) : 'undefined'
-  });
   
   try {
     // Determinar qué flow usar basado en el slug del tenant
@@ -39,7 +31,6 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
       await handleDkape(req, res, tenant.id);
     } else {
       // Flow genérico para otras tiendas (usar crunchypaws como default)
-      console.log(`📋 Usando flow genérico para tenant: ${tenant.slug}`);
       await handleCrunchypaws(req, res, tenant.id);
     }
   } catch (error) {

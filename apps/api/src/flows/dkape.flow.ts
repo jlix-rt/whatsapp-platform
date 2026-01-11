@@ -29,7 +29,6 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     conversation = await getOrCreateConversation(storeId, from);
   } else if (conversation.deleted_at) {
     // Si la conversación está eliminada, restaurarla y ponerla en modo BOT
-    console.log(`♻️ Restaurando conversación eliminada ${conversation.id} para ${from}`);
     conversation = await restoreConversation(conversation.id);
   }
   
@@ -45,7 +44,6 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
 
   // Si la conversación está en modo HUMAN, solo guardar y no responder
   if (conversation.mode === 'HUMAN') {
-    console.log(`📝 Mensaje guardado (modo HUMAN) - Conversación ${conversation.id}`);
     return res.status(200).end();
   }
 
@@ -57,7 +55,6 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
       const responseMessage = 'Alguien se comunicará contigo en breve';
       const sent = await sendText(from, responseMessage, tenant);
       await saveMessage(conversation.id, 'outbound', responseMessage);
-      console.log(`🤖 Conversación ${conversation.id} cambiada a modo HUMAN${sent ? '' : ' (simulado)'}`);
       return res.status(200).end();
     }
 
@@ -65,7 +62,6 @@ export const handleMessage = async (req: any, res: any, storeId: number) => {
     const menuMessage = '¿Qué deseas hacer?\n1. Hacer pedido\n2. Hablar con una persona';
     const sent = await sendText(from, menuMessage, tenant);
     await saveMessage(conversation.id, 'outbound', menuMessage);
-    console.log(`🤖 Respuesta automática enviada - Conversación ${conversation.id}${sent ? '' : ' (simulado)'}`);
     return res.status(200).end();
   }
 

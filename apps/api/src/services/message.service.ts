@@ -66,14 +66,6 @@ export const getStoreBySlug = async (slug: string): Promise<Store | null> => {
   
   const store = result.rows[0] || null;
   
-  // Log para debugging: confirmar que se obtuvieron las credenciales
-  if (store) {
-    console.log(`📊 [DB] Credenciales de Twilio obtenidas para tenant '${slug}':`, {
-      hasAccountSid: !!store.twilio_account_sid,
-      hasAuthToken: !!store.twilio_auth_token,
-      hasWhatsappFrom: !!store.whatsapp_from
-    });
-  }
   
   return store;
 };
@@ -164,8 +156,6 @@ export const updateConversationMode = async (
     [mode, id]
   );
   
-  // Loggear cuántas filas fueron afectadas para debug
-  console.log(`📊 UPDATE conversations SET mode = '${mode}' WHERE id = ${id}: ${result.rowCount} fila(s) afectada(s)`);
   
   if (result.rowCount === 0) {
     throw new Error(`No se encontró la conversación con id ${id}`);
@@ -219,12 +209,6 @@ export const getConversations = async (storeId: number): Promise<any[]> => {
   // Debug: log para conversaciones con +50277777777
   result.rows.forEach((row: any) => {
     if (row.phone_number && row.phone_number.includes('77777777')) {
-      console.log('🔍 Debug getConversations para +50277777777:', {
-        id: row.id,
-        phone_number: row.phone_number,
-        last_message: row.last_message,
-        last_message_direction: row.last_message_direction,
-        human_handled: row.human_handled
       });
     }
   });
@@ -380,6 +364,5 @@ export const restoreConversation = async (
     throw new Error(`No se encontró la conversación eliminada con id ${conversationId}`);
   }
   
-  console.log(`♻️ Conversación ${conversationId} restaurada y puesta en modo BOT`);
   return result.rows[0];
 };

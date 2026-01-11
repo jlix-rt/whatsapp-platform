@@ -115,16 +115,6 @@ export const tenantMiddleware = async (
     // Solo loguear si fue necesario consultar la BD (tenant nuevo o caché no inicializado)
     const wasInCache = tenantCache.isInitialized() && (tenantCache as any).cache.has(tenantId);
     if (!wasInCache) {
-      console.log(`✅ [TENANT] Tenant '${tenantId}' obtenido desde BD:`, {
-        id: store.id,
-        name: store.name,
-        slug: store.slug,
-        hasTwilioAccountSid: !!store.twilio_account_sid,
-        hasTwilioAuthToken: !!store.twilio_auth_token,
-        hasWhatsappFrom: !!store.whatsapp_from,
-        environment: store.environment
-      });
-
       // Advertencia si no tiene credenciales de Twilio configuradas
       if (!store.twilio_account_sid || !store.twilio_auth_token) {
         console.warn(`⚠️  [TENANT] Tenant '${tenantId}' no tiene credenciales de Twilio en BD. Se usarán variables de entorno como fallback.`);
@@ -212,7 +202,6 @@ function extractTenantIdFromHost(host: string): string | null {
     return null;
   }
 
-  console.log('✅ [EXTRACT] Tenant ID extraído exitosamente:', normalizedTenantId);
   return normalizedTenantId;
 }
 

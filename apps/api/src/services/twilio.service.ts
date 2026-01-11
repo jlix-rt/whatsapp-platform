@@ -39,10 +39,6 @@ function getTwilioClient(tenant?: Store): any {
   let authToken: string | undefined;
   let whatsappFrom: string | undefined;
 
-  // Log solo si no hay tenant o si es la primera vez (evitar spam)
-  if (!tenant) {
-    console.log('⚠️  [TWILIO] getTwilioClient llamado sin tenant');
-  }
   if (tenant) {
     // Usar credenciales del tenant si están disponibles
     accountSid = tenant.twilio_account_sid || undefined;
@@ -81,15 +77,9 @@ function getTwilioClient(tenant?: Store): any {
   // Para forzar MOCK en desarrollo, usar: ENABLE_TWILIO_MOCK=true
   const forceMock = process.env.ENABLE_TWILIO_MOCK === 'true';
   if (forceMock) {
-    console.log('🔧 Modo MOCK forzado por ENABLE_TWILIO_MOCK=true');
     return null;
   }
 
-  // Si estamos en desarrollo pero tenemos credenciales, preguntar si queremos enviar realmente
-  if (!isProduction) {
-    console.log(`🔧 Modo desarrollo con credenciales válidas. Enviando mensajes reales a Twilio.`);
-    console.log(`   Para usar MOCK en desarrollo, configura ENABLE_TWILIO_MOCK=true en .env`);
-  }
 
   try {
     return twilio(accountSid, authToken);
@@ -117,15 +107,8 @@ export const sendInteractive = async (
 
   // Obtener cliente de Twilio para el tenant
   const client = getTwilioClient(tenant);
-  console.log('client', client);
   // En desarrollo: solo loguear, NO enviar a Twilio
   if (!client) {
-    console.log('[MOCK SEND]', bodyText);
-    console.log('   To:', to);
-    console.log('   Type: Interactive');
-    if (tenant) {
-      console.log(`   Tenant: ${tenant.slug}`);
-    }
     return false; // Indica que fue simulado
   }
 
@@ -138,11 +121,6 @@ export const sendInteractive = async (
     throw new Error(`Número de WhatsApp no configurado${tenantInfo}. Configure whatsapp_from en la tabla stores o WHATSAPP_FROM en .env`);
   }
 
-  // Log para debugging: mostrar qué número se está usando y de dónde viene
-  if (tenant) {
-    const source = tenant.whatsapp_from ? 'base de datos (tenant)' : 'variables de entorno (.env)';
-    console.log(`📱 Enviando mensaje interactivo desde: ${whatsappFrom} (fuente: ${source}, tenant: ${tenant.slug})`);
-  }
 
   try {
     await client.messages.create({
@@ -177,11 +155,6 @@ export const sendText = async (
 
   // En desarrollo: solo loguear, NO enviar a Twilio
   if (!client) {
-    console.log('[MOCK SEND]', text);
-    console.log('   To:', to);
-    if (tenant) {
-      console.log(`   Tenant: ${tenant.slug}`);
-    }
     return false; // Indica que fue simulado
   }
 
@@ -194,11 +167,6 @@ export const sendText = async (
     throw new Error(`Número de WhatsApp no configurado${tenantInfo}. Configure whatsapp_from en la tabla stores o WHATSAPP_FROM en .env`);
   }
 
-  // Log para debugging: mostrar qué número se está usando y de dónde viene
-  if (tenant) {
-    const source = tenant.whatsapp_from ? 'base de datos (tenant)' : 'variables de entorno (.env)';
-    console.log(`📱 Enviando mensaje desde: ${whatsappFrom} (fuente: ${source}, tenant: ${tenant.slug})`);
-  }
 
   try {
     await client.messages.create({
@@ -233,23 +201,12 @@ export const sendMedia = async (
 ): Promise<boolean> => {
   const client = getTwilioClient(tenant);
   if (!client) {
-    console.log('[MOCK SEND MEDIA]', text || '[Sin texto]');
-    console.log('   To:', to);
-    console.log('   Media URL:', mediaUrl);
-    console.log('   Media Type:', mediaType);
-    if (tenant) {
-      console.log(`   Tenant: ${tenant.slug}`);
-    }
     return false;
   }
   const whatsappFrom = tenant?.whatsapp_from || process.env.WHATSAPP_FROM;
   if (!whatsappFrom) {
     const tenantInfo = tenant ? ` para el tenant '${tenant.slug}'` : '';
     throw new Error(`Número de WhatsApp no configurado${tenantInfo}. Configure whatsapp_from en la tabla stores o WHATSAPP_FROM en .env`);
-  }
-  if (tenant) {
-    const source = tenant.whatsapp_from ? 'base de datos (tenant)' : 'variables de entorno (.env)';
-    console.log(`📱 Enviando media desde: ${whatsappFrom} (fuente: ${source}, tenant: ${tenant.slug})`);
   }
   try {
     const messagePayload: any = {
