@@ -148,9 +148,11 @@ export const updateConversationMode = async (
     throw new Error(`ID de conversación inválido: ${conversationId}`);
   }
 
+  // Cuando se cambia a modo BOT o HUMAN, resetear human_handled a false
+  // human_handled solo se marcará como true cuando se envíe un mensaje manualmente
   const result = await pool.query(
     `UPDATE conversations
-     SET mode = $1, updated_at = CURRENT_TIMESTAMP
+     SET mode = $1, human_handled = false, updated_at = CURRENT_TIMESTAMP
      WHERE id = $2
      RETURNING *`,
     [mode, id]
@@ -333,6 +335,7 @@ export const deleteConversation = async (conversationId: number): Promise<Conver
     `UPDATE conversations
      SET deleted_at = CURRENT_TIMESTAMP, 
          mode = 'BOT',
+         human_handled = false,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND deleted_at IS NULL
      RETURNING *`,
@@ -356,7 +359,10 @@ export const restoreConversation = async (
 ): Promise<Conversation> => {
   const result = await pool.query(
     `UPDATE conversations
-     SET deleted_at = NULL, mode = 'BOT', updated_at = CURRENT_TIMESTAMP
+     SET deleted_at = NULL, 
+         mode = 'BOT', 
+         human_handled = false,
+         updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND deleted_at IS NOT NULL
      RETURNING *`,
     [conversationId]
