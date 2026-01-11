@@ -11,9 +11,8 @@
 export const environment = {
   production: true,
   // URL relativa - nginx hará proxy reverso a localhost:3333
+  // En producción, usar URL relativa para que funcione con cualquier dominio
   apiUrl: '',
-  // Alternativa si el backend está directamente accesible:
-  // apiUrl: 'http://localhost:3333/api'
   messagesLimit: 50, // Número de mensajes a cargar por vez (puede ser sobrescrito por variable de entorno del backend)
   vapidPublicKey: 'BLEbFJnzVXi-IZ3-Fiz2axpweVENHnX22sral6H1p4rUPX0VfaAjnyNxQ8b-quwgaVhTCus7zVwgawbsxgjlxas' // Reemplazar con tu clave pública VAPID
 };

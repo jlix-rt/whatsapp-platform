@@ -15,7 +15,8 @@ export interface PushSubscriptionData {
   providedIn: 'root'
 })
 export class PushNotificationService {
-  private apiUrl = environment.apiUrl || 'http://localhost:3333';
+  // Usar URL relativa si está vacía, o la URL configurada
+  private apiUrl = environment.apiUrl || (environment.production ? '' : 'http://localhost:3333');
   private swRegistration: ServiceWorkerRegistration | null = null;
 
   constructor(private http: HttpClient) {}
@@ -182,7 +183,12 @@ export class PushNotificationService {
    * Envía la suscripción al servidor
    */
   private sendSubscriptionToServer(subscription: PushSubscriptionData): Observable<any> {
-    return this.http.post(`${this.apiUrl}/api/push/subscribe`, {
+    // Construir la URL correctamente: si apiUrl está vacío, usar URL relativa
+    const url = this.apiUrl 
+      ? `${this.apiUrl}/api/push/subscribe`
+      : '/api/push/subscribe';
+    
+    return this.http.post(url, {
       subscription: {
         endpoint: subscription.endpoint,
         keys: {
@@ -260,8 +266,12 @@ export class PushNotificationService {
     if (subscription) {
       await subscription.unsubscribe();
       // Notificar al backend que se canceló la suscripción
+      const unsubscribeUrl = this.apiUrl 
+        ? `${this.apiUrl}/api/push/unsubscribe`
+        : '/api/push/unsubscribe';
+      
       await firstValueFrom(
-        this.http.post(`${this.apiUrl}/api/push/unsubscribe`, {
+        this.http.post(unsubscribeUrl, {
           endpoint: subscription.endpoint
         })
       );
