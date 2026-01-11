@@ -22,8 +22,12 @@ export class PushNotificationService {
 
   /**
    * Inicializa el service worker y solicita permisos
+   * Se ejecuta cada vez que se carga la página
    */
   async initialize(): Promise<boolean> {
+    console.log('🚀 Inicializando notificaciones push...');
+    console.log('   API URL:', this.apiUrl);
+    
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       console.warn('⚠️ Push messaging no está soportado en este navegador');
       return false;
@@ -31,6 +35,7 @@ export class PushNotificationService {
 
     try {
       // Registrar el service worker
+      console.log('📝 Registrando Service Worker...');
       const registration = await navigator.serviceWorker.register('/sw.js');
       this.swRegistration = registration;
       
@@ -42,10 +47,12 @@ export class PushNotificationService {
       
       if (currentPermission === 'granted') {
         // Ya tenemos permisos, verificar suscripción
+        console.log('🔍 Verificando suscripción existente...');
         const subscription = await registration.pushManager.getSubscription();
         if (subscription) {
-          console.log('✅ Ya estás suscrito a notificaciones push');
-          // Verificar que la suscripción esté en el servidor
+          console.log('✅ Suscripción encontrada:', subscription.endpoint.substring(0, 50) + '...');
+          // SIEMPRE verificar y re-enviar la suscripción al servidor
+          console.log('📤 Re-enviando suscripción al servidor para asegurar que esté guardada...');
           await this.verifySubscription(subscription);
         } else {
           console.log('📝 No hay suscripción activa, creando una nueva...');
@@ -69,14 +76,17 @@ export class PushNotificationService {
         console.warn('❌ Permisos de notificación bloqueados. Debes habilitarlos manualmente en la configuración del navegador.');
         return false;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error inicializando notificaciones push:', error);
+      console.error('   Mensaje:', error.message);
+      console.error('   Stack:', error.stack);
       return false;
     }
   }
 
   /**
    * Verifica que la suscripción esté guardada en el servidor
+   * SIEMPRE re-envía la suscripción para asegurar que esté guardada
    */
   private async verifySubscription(subscription: PushSubscription): Promise<void> {
     try {
@@ -88,11 +98,21 @@ export class PushNotificationService {
         }
       };
       
+      console.log('📤 Enviando suscripción al servidor:', {
+        endpoint: subscriptionData.endpoint.substring(0, 50) + '...',
+        url: `${this.apiUrl}/api/push/subscribe`
+      });
+      
       // Re-enviar la suscripción al servidor para asegurar que esté guardada
-      await firstValueFrom(this.sendSubscriptionToServer(subscriptionData));
-      console.log('✅ Suscripción verificada y guardada en el servidor');
-    } catch (error) {
-      console.error('⚠️ Error verificando suscripción:', error);
+      const response = await firstValueFrom(this.sendSubscriptionToServer(subscriptionData));
+      console.log('✅ Suscripción verificada y guardada en el servidor:', response);
+    } catch (error: any) {
+      console.error('❌ Error verificando suscripción:', error);
+      console.error('   URL intentada:', `${this.apiUrl}/api/push/subscribe`);
+      console.error('   Mensaje:', error.message);
+      if (error.error) {
+        console.error('   Error del servidor:', error.error);
+      }
     }
   }
 
@@ -130,8 +150,13 @@ export class PushNotificationService {
       };
 
       // Enviar la suscripción al backend
-      await firstValueFrom(this.sendSubscriptionToServer(subscriptionData));
-      console.log('✅ Suscripción guardada en el servidor');
+      console.log('📤 Enviando nueva suscripción al servidor:', {
+        endpoint: subscriptionData.endpoint.substring(0, 50) + '...',
+        url: `${this.apiUrl}/api/push/subscribe`
+      });
+      
+      const response = await firstValueFrom(this.sendSubscriptionToServer(subscriptionData));
+      console.log('✅ Suscripción guardada en el servidor:', response);
     } catch (error) {
       console.error('❌ Error suscribiéndose a notificaciones push:', error);
       throw error;
